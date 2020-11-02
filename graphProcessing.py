@@ -36,10 +36,10 @@ class graphApi:
     threading.Timer(self.graphUpdateCheckRate,self.checkLastUpdate).start()
 
 
-
+# All below is for selfstanfing class, this is part of supervisor.py
 class apiEndpoint:
   endpoints = {
-    "login":"http://tebe.westeurope.cloudapp.azure.com:3333/users/login",
+    "login":None,
     "getGraph":None,
     "getGraphTimestamp":None
   }

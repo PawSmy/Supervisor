@@ -2,6 +2,7 @@ import json
 import requests
 import threading
 import paho.mqtt.client as mqtt
+import graphProcessing
 
 #global variables
 robotsDict = {}
@@ -18,7 +19,9 @@ class apiEndpoint:
     "updateRobo":"http://tebe.westeurope.cloudapp.azure.com:3333/robots/update",
     "getRobotsID":"http://tebe.westeurope.cloudapp.azure.com:3333/robots/allById",
     "getRobotsByID":"http://tebe.westeurope.cloudapp.azure.com:3333/robots/",
-    "checkRobotsByID":None
+    "checkRobotsByID":None,
+    "getGraph":None,
+    "getGraphTimestamp":None
   }
 
   def __init__(self,login,password):
@@ -78,6 +81,12 @@ class apiEndpoint:
       #self.verifyRoboQueue()
       self.verifyRobots()
     threading.Timer(self.robotsVerifyCheckRate,self.verifyRobotsLoop).start()
+
+  def getGraphTimestamp(self):
+    return self._raptorsAPI.get(self.endpoints["getGraphTimestamp"])
+
+  def getGraphData(self):
+    return self._raptorsAPI.get(self.endpoints["getGraph"])
 
 # =====================================================================================================================
   # dla nowego endpointu
@@ -213,6 +222,9 @@ class mqttHandler:
 rAPI = apiEndpoint('aaa','aaa')
 if(rAPI.connectionCheck):
   print ("API connection success")
+
+  #create graph class
+  gAPI = graphApi()
 
   #connect mqtt
   rMQTT = mqttHandler("localhost",1883,60)
