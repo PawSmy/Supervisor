@@ -4,6 +4,9 @@ import copy
 import itertools
 import math
 import matplotlib.pyplot as plt #do wizualizaccji i rysowania grafu
+import json 
+from shapely.geometry import LineString, Point
+from shapely.ops import unary_union
 from dispatcher import Task
 
 blockWeight = 9999999
