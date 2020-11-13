@@ -323,7 +323,12 @@ class Dispatcher:
                                      if robot["isFree"] and robot["nextTaskEdge"] is not None]
                 n_robots_in_next_group = sum([1 for robot in robots_next_edges
                                               if self.graph.edges[robot["nextTaskEdge"]]["edgeGroupId"] == group_id])
-                edge_is_available = 1 > (n_robots_in_group + n_robots_in_next_group)
+                # sprawdzenie czy dany robot znajduje sie w tej grupie, jesli tak to nie jest wliczany
+                robots_ids_in_group = [edge[2]["robotsId"] for edge in self.graph.edges(data=True)
+                                       if edge[2]["edgeGroupId"] == group_id]
+                remove_robot = 1 if any(robot_task["id"] in r_ids for r_ids in robots_ids_in_group) else 0
+
+                edge_is_available = 1 > (n_robots_in_group + n_robots_in_next_group - remove_robot)
             else:
                 # krawedz nie nalezy do grupy
                 # 3. sprawdzenie ile aktualnie robotow porusza sie dana krawedzia
