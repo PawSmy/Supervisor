@@ -9,7 +9,6 @@ from shapely.geometry import LineString
 from shapely.ops import unary_union
 from dispatcher import Task
 
-block_weight = 9999999
 corridor_width = 0.3  # 1
 robot_length = 0.4  # 0.6
 docking_time_weight = 20
@@ -972,7 +971,7 @@ class SupervisorGraphCreator(DataConverter):
                         is_blocked = True
                         break
             if is_blocked:
-                self.graph.edges[i]["weight"] = block_weight
+                self.graph.edges[i]["weight"] = None
             elif edge["behaviour"] == Task.beh_type["goto"] and edge["edgeGroupId"] != 0 \
                     and len(edge["sourceNodes"]) == 1:
                 self.graph.edges[i]["weight"] = 3
