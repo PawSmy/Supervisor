@@ -172,7 +172,6 @@ class DataConverter:
         self.validate_waiting_connection_nodes()
         self.validate_departure_connection_nodes()
         self.validate_wait_dep_connection_nodes()
-        print("dane prawidłowe")
 
     def combined_normal_nodes(self, edges):
         normal_nodes_id = {i for i in self.source_nodes if self.source_nodes[i]["type"] == base_node_type["normal"]}
