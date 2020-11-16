@@ -115,11 +115,11 @@ class Dispatcher:
         """Utworzenie klasy Dispatcher'a i ustawienie wartosci atrybutow pois, graph, all_tasks.
 
         Parameters:
-            graph_data (nx.DiGraph()): wygenerwany rozszerzony graf do planowania kolejnych zachowan robotow
+            graph_data (SupervisorGraphCreator): wygenerwany rozszerzony graf do planowania kolejnych zachowan robotow
             poi_list ({poiId: {"type": nodeType}, ...}): zawiera liste poi wraz z Id oraz jego typem
             robots ():
         """
-        self.graph = graph_data.get_graph()
+        self.graph = copy.deepcopy(graph_data.get_graph())
         self.extend_graph()
         self.robots_tasks = []
         self.set_robots(copy.deepcopy(robots))
@@ -130,6 +130,25 @@ class Dispatcher:
     def extend_graph(self):
         for edge in self.graph.edges(data=True):
             self.graph.edges[edge[0], edge[1]]["robotsId"] = []
+            self.graph.edges[edge[0], edge[1]]["planWeight"] = self.graph.edges[edge[0], edge[1]]["weight"]
+
+    def block_other_pois(self, robot_node, target_node):
+        """
+        Funkcja odpowiada za zablokowanie krawedzi grafu zwiazanych z innymi POI niz aktualnym (jesli jest w POI) i
+        docelowym.
+
+        Parameters:
+            robot_node (int): wezel grafu z supervisora w ktorym aktualnie jest robot
+            target_node (int): wezel grafu z supervisora do ktorego zmierza robot
+        """
+        no_block_poi_ids = [0, self.graph.nodes[robot_node]["poiId"], self.graph.nodes[target_node]["poiId"]]
+        for edge in self.graph.edges(data=True):
+            start_node_poi_id = self.graph.nodes[edge[0]]["poiId"]
+            end_node_poi_id = self.graph.nodes[edge[1]]["poiId"]
+            if start_node_poi_id in no_block_poi_ids and end_node_poi_id in no_block_poi_ids:
+                self.graph.edges[edge[0], edge[1]]["planWeight"] = self.graph.edges[edge[0], edge[1]]["weight"]
+            else:
+                self.graph.edges[edge[0], edge[1]]["planWeight"] = None
 
     def set_plan(self, robots, tasks):
         """Zwraca plan dla robotow.
@@ -229,28 +248,32 @@ class Dispatcher:
     def set_tasks_doing_by_robots(self):
         """Przypisanie zadan do robotow, ktore sa aktualnie wykonywane.
         """
-        for r_task in self.robots_tasks:
-            for in_task in self.all_tasks:
+        tasks_to_remove = []
+        for in_task in self.all_tasks:
+            for r_task in self.robots_tasks:
                 if r_task["id"] == in_task["robotId"] and \
                         in_task["behaviours"][0]["status"] != Task.status["not_started"]:
                     r_task["task"] = in_task
                     self.set_task_edge(r_task)
-                    self.all_tasks.remove(in_task)
-                    break
+                    tasks_to_remove.append(in_task)
+        for rm_task in tasks_to_remove:
+            self.all_tasks.remove(rm_task)
 
     def set_task_assigned_to_robots(self):
         """Przypisanie do wolnych robotow zadan, ktore sa do nich przypisane. Po przypisaniu zadania
         usuwane jest ono z listy all_tasks.
         """
-        for r_task in self.robots_tasks:
-            if r_task["task"] is None:
-                for in_task in self.all_tasks:
+        tasks_to_remove = []
+        for in_task in self.all_tasks:
+            for r_task in self.robots_tasks:
+                if r_task["task"] is None:
                     if in_task["robotId"] == r_task["id"] and \
                             in_task["behaviours"][0]["status"] == Task.status["not_started"]:
                         r_task["task"] = in_task
                         self.set_task_edge(r_task)
-                        self.all_tasks.remove(in_task)
-                        break
+                        tasks_to_remove.append(in_task)
+        for rm_task in tasks_to_remove:
+            self.all_tasks.remove(rm_task)
 
     def get_free_robots(self):
         """Zwraca liste robotow do ktorych zadania nie zostaly przypisane
@@ -309,9 +332,12 @@ class Dispatcher:
             # 1. pobranie kolejnej krawedzi ktora ma poruszac sie robot
             end_node = self.get_undone_behaviour_node(robot_task["task"])
             assert robot_task["edge"][
-                       1] != end_node, "Robot finished behaviour in task, but behaviour doesn't have" \
+                       1] != end_node, "Robot finished behaviour in task, but behaviour doesn't have " \
                                        "done status or invalid node found."
-            path_nodes = nx.shortest_path(self.graph, source=robot_task["edge"][1], target=end_node, weight='weight')
+            start_node = robot_task["edge"][1]
+            self.block_other_pois(start_node, end_node)
+            path_nodes = nx.shortest_path(self.graph, source=start_node, target=end_node,
+                                          weight='planWeight')
             next_edge = (path_nodes[0], path_nodes[1])
             # 2. sprawdzenie czy krawedz nalezy do grupy krawedzi na ktorej moze byc tylko 1 robot
             group_id = self.graph.edges[next_edge]["edgeGroupId"]
@@ -501,7 +527,9 @@ class Dispatcher:
             for r_id in robots_id:
                 robot_node = [r_task["edge"][1] for r_task in self.robots_tasks if r_task["id"] == r_id][0]
                 target_node = self.get_undone_behaviour_node(task)
-                task_time = nx.shortest_path_length(self.graph, source=robot_node, target=target_node, weight='weight')
+                self.block_other_pois(robot_node, target_node)
+                task_time = nx.shortest_path_length(self.graph, source=robot_node, target=target_node,
+                                                    weight='planWeight')
                 if min_task_time is None or min_task_time > task_time:
                     fastest_robot_id = r_id
                     min_task_time = task_time
