@@ -62,7 +62,7 @@ class Task:
                     # własciwy dojazd do POI został wykonany, ale kolejnym zachowaniem może być
                     # dokowanie,wait,oddokowanie
                     goalPoi = behaviour["goalId"]
-                if previous_behaviour["status"] == "done" and behaviour["status"] != self.status["done"]:
+                if previous_behaviour["status"] == self.status["done"] and behaviour["status"] != self.status["done"]:
                     # poprzednie zachowanie zostało zakończone, aktualne posiada jakiś inny status
                     # dla tego nowego zachowania robot będzie jechał do POI przez nie wskazanego
                     goalPoi = behaviour["goalId"]
