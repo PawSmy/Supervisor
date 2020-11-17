@@ -536,7 +536,7 @@ class SupervisorGraphCreator(DataConverter):
         self.graph_node_id = 1
         self.edge_group_id = 1
         self.edge_id = 1
-        self.group_id_switcher = {}
+        self.group_id_switcher = {} #kluczem jest id wezla grafu podstawowego
         self.convert_data_run()
         self.create_graph()
 
@@ -752,11 +752,12 @@ class SupervisorGraphCreator(DataConverter):
             if self.source_nodes[i]["type"] == base_node_type["waiting-departure"]:
                 # wezel dla ktorego budowane jest skrzyzowanie jest wezlem oczekiwania
                 # krawedzie zwiazane z tym skrzyzowaniem powinny nalezec do stanowiska
-                connected_edges = [main_edge for main_edge in self.graph.edges(data=True)
-                                   if (main_edge[2]["sourceNodes"][0] in operation_pois or
-                                       main_edge[2]["sourceNodes"][-1] in operation_pois)]
-                start_node = connected_edges[0][2]["sourceNodes"][0]
-                end_node = connected_edges[0][2]["sourceNodes"][-1]
+                connected_edges = [edge for edge in self.reduced_edges.values()
+                                   if (edge["sourceNodes"][0] in operation_pois and
+                                       edge["sourceNodes"][-1] == i) or (edge["sourceNodes"][-1] in operation_pois
+                                                                         and edge["sourceNodes"][0] == i)]
+                start_node = connected_edges[0]["sourceNodes"][0]
+                end_node = connected_edges[0]["sourceNodes"][-1]
                 poi_source_node = start_node if start_node in operation_pois else end_node
                 group_id = self.group_id_switcher[poi_source_node]
                 wait_dep_intersection = True
