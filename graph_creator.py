@@ -9,7 +9,7 @@ from shapely.geometry import LineString
 from shapely.ops import unary_union
 from dispatcher import Task
 
-corridor_width = 0.3  # 1
+corridor_width = 0.3  # 1 szerokosc korytarza dla pojedynczego robota
 robot_length = 0.4  # 0.6
 docking_time_weight = 20
 undocking_time_weight = 20
@@ -511,23 +511,6 @@ def get_node_area(start, robot_path_coordinates):
     return poi
 
 
-def create_corridor_coordinates(robot_path_coordinates):
-    # robotPathCoordinates = [(x,y),(x2,y2),...]
-    # create corridor along the path
-    line = LineString(robot_path_coordinates)
-    corridor = line.buffer(corridor_width / 2, cap_style=3, join_style=2)
-
-    poi_a = get_node_area(True, robot_path_coordinates)
-    poi_b = get_node_area(False, robot_path_coordinates)
-
-    # create final corridor
-    unia = unary_union([poi_b, corridor, poi_a])
-    x, y = unia.exterior.coords.xy
-    final_corridor_coordinates = [(x[i], y[i]) for i in range(len(x))]
-    # finalCorridorCoordinates = [(x,y),(x2,y2),...]
-    return final_corridor_coordinates
-
-
 class SupervisorGraphCreator(DataConverter):
     def __init__(self, source_nodes, source_edges):
         # odczyt danych, wywołanie odpowiednich funkcji i utworzenie właściwego grafu
@@ -536,7 +519,7 @@ class SupervisorGraphCreator(DataConverter):
         self.graph_node_id = 1
         self.edge_group_id = 1
         self.edge_id = 1
-        self.group_id_switcher = {} #kluczem jest id wezla grafu podstawowego
+        self.group_id_switcher = {}  # kluczem jest id wezla grafu podstawowego
         self.convert_data_run()
         self.create_graph()
 
@@ -835,14 +818,15 @@ class SupervisorGraphCreator(DataConverter):
         for node_id, node_data in self.graph.nodes(data=True):
             node_position = self.source_nodes[node_data["sourceNode"]]["pos"]
             node_type = node_data["nodeType"]
-            if node_type == new_node_type["dock"]:
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)
+            if node_type == new_node_type["dock"]:  # zakomentowane funkcje na potrzeby testow polaczenia pomiedzy
+                # krawedziami
+                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)
             elif node_type == new_node_type["wait"]:
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)
+                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)
             elif node_type == new_node_type["undock"]:
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)
+                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)
             elif node_type == new_node_type["end"]:
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)
+                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)
             elif node_type == new_node_type["noChanges"]:
                 self.graph.nodes[node_id]["pos"] = node_position
             elif node_type == new_node_type["intersection_in"]:
@@ -1009,109 +993,71 @@ class SupervisorGraphCreator(DataConverter):
                                              nodes_pos[j + 1][1] - nodes_pos[j][1])
                 self.graph.edges[i]["maxRobots"] = math.floor(dist / robot_length)
 
-    def get_corridor_path(self, edge_id, source_path):
+    def get_corridor_path(self, edge):
         # sourcePath = [(x,y),(x2,y2),...]
-        line = LineString(source_path)
-        corridor = line.buffer(corridor_width / 2, cap_style=3, join_style=2)
-        unia = unary_union([corridor])
-        x, y = unia.exterior.coords.xy
-        source_path_corridor = [(x[i], y[i]) for i in range(len(x))]
-        start_node_pos = [self.graph.nodes[edge[0]]["pos"] for edge in self.graph.edges(data=True)
-                          if edge[2]["id"] == edge_id][0]
-        end_node_pos = [self.graph.nodes[edge[1]]["pos"] for edge in self.graph.edges(data=True)
-                        if edge[2]["id"] == edge_id][0]
-        item_to_del = int((len(source_path_corridor) - 3) / 2)
-        del source_path_corridor[0:item_to_del]
-        del source_path_corridor[-3:]
-        source_path_corridor = source_path_corridor[::-1]
-        source_path_corridor[0] = start_node_pos
-        source_path_corridor[-1] = end_node_pos
-        return source_path_corridor
-
-    def get_corridor_coordinates(self, edge_id):
-        # zadania musza byc typu go to aby mozna bylo skorzystac
-        edge = [data for data in self.graph.edges(data=True) if data[2]["id"] == edge_id][0]
-        # print(edge)
-        # print(len(edge["sourceNodes"]))
-        assert Task.beh_type["goto"] == edge[2][
-            "behaviour"], "Corridors can be only created to 'goto' behaviur edge type"
-        # obsluga dla skrzyzowan
-        if len(edge[2]["sourceNodes"]) == 1:
-            #  print("skrzyzowanie")
-            source_pos = self.source_nodes[edge[2]["sourceNodes"][0]]["pos"]
-            # wezel startowy
-            start_node_pos = [self.graph.nodes[data[0]]["pos"] for data in self.graph.edges(data=True)
-                              if data[2]["id"] == edge_id][0]
-            angle = np.arctan2(corridor_width + robot_length, corridor_width / 2) + np.arctan2(
-                source_pos[1] - start_node_pos[1], source_pos[0] - start_node_pos[0])
-            translate_to_base_node = np.array([[1, 0, 0, start_node_pos[0]], [0, 1, 0, start_node_pos[1]],
-                                              [0, 0, 1, 0], [0, 0, 0, 1]])
-            rotation_start_node = np.array([[math.cos(angle), -math.sin(angle), 0, 0],
-                                           [math.sin(angle), math.cos(angle), 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-            corridor_start = np.array([[1, 0, 0, corridor_width / 2],
-                                      [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-            way = np.dot(np.dot(translate_to_base_node, rotation_start_node), corridor_start)
-            start_pos = (way[0][3], way[1][3])
-
-            # wezel koncowy
-            end_node_pos = [self.graph.nodes[data[1]]["pos"] for data in self.graph.edges(data=True)
-                            if data[2]["id"] == edge_id][0]
-            angle2 = np.arctan2(corridor_width / 2, corridor_width + robot_length) + np.arctan2(
-                end_node_pos[1] - source_pos[1], end_node_pos[0] - source_pos[0])
-            translate_to_intersection = np.array([[1, 0, 0, source_pos[0]], [0, 1, 0, source_pos[1]],
-                                                 [0, 0, 1, 0], [0, 0, 0, 1]])
-            rotation_to_way2 = np.array([[math.cos(angle2), -math.sin(angle2), 0, 0],
-                                        [math.sin(angle2), math.cos(angle2), 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-            way_node2 = np.array([[1, 0, 0, corridor_width + robot_length],
-                                 [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-            way2 = np.dot(np.dot(translate_to_intersection, rotation_to_way2), way_node2)
-            end_pos = (way2[0][3], way2[1][3])
-
-            #  startDifferentEdge = [data for data in self.graph.edges(data=True)\
-            #      if data[1] == edge[0] and data[2]["wayType"] != edgeDirectionType["twoWay"]]
-            #  if len(startDifferentEdge) > 0:
-            #      startPos = startNodePos
-
-            #  endDifferentEdge = [data for data in self.graph.edges(data=True)\
-            #       if data[0] == edge[1] and data[2]["wayType"] != edgeDirectionType["twoWay"]]
-            #   if len(endDifferentEdge) > 0:
-            #      endPos = endNodePos
-            #  print("start len", startDifferentEdge, "end len", endDifferentEdge)
-            line = LineString([start_pos, source_pos, end_pos])
+        source_id = [data[2]["sourceNodes"] for data in self.graph.edges(data=True) if data[0] == edge[0]
+                     and data[1] == edge[1]][0]
+        start_pos = self.graph.nodes[edge[0]]["pos"]
+        end_pos = self.graph.nodes[edge[1]]["pos"]
+        if len(source_id) > 1 and self.graph.edges[edge]["wayType"] == way_type["twoWay"]:
+            # wiecej wezlow zrodlowych, krawedz nie jest krawedzia skrzyzowania
+            source_path = [self.source_nodes[i]["pos"] for i in source_id]
+            line = LineString(source_path)
             corridor = line.buffer(corridor_width / 2, cap_style=3, join_style=2)
             unia = unary_union([corridor])
             x, y = unia.exterior.coords.xy
-            base_coordinates = [(x[i], y[i]) for i in range(len(x))]
-
-            x_source = [start_node_pos[0], source_pos[0], end_node_pos[0]]
-            y_source = [start_node_pos[1], source_pos[1], end_node_pos[1]]
-            x_path = [point[0] for point in [start_pos, source_pos, end_pos]]
-            y_path = [point[1] for point in [start_pos, source_pos, end_pos]]
-            x_cor = [point[0] for point in base_coordinates]
-            y_cor = [point[1] for point in base_coordinates]
-            plt.plot(x_source, y_source, "g", x_path, y_path, "r", x_cor, y_cor, "b")
-            # plt.plot(x_source,y_source,"g",x_path,y_path,"r")
-            plt.xlabel("x[m]")
-            plt.ylabel("y[m]")
-            plt.show()
-            return base_coordinates
-        else:
-            print("inne krawedzie")
-            # inne krawedzie
-            source_id = [data[2]["sourceNodes"] for data in self.graph.edges(data=True)
-                         if data[2]["id"] == edge_id][0]
+            source_path = [(x[i], y[i]) for i in range(len(x))]
+            item_to_del = int((len(source_path) - 3) / 2)
+            del source_path[0:item_to_del]
+            del source_path[-3:]
+            source_path = source_path[::-1]
+            # odleglosc do poczatku krawedzi
+            distanceA = math.sqrt(((start_pos[0] - source_path[0][0]) ** 2)+((start_pos[1] - source_path[0][1]) ** 2))
+            # odleglosc do konca krawedzi
+            distanceB = math.sqrt(((start_pos[0] - source_path[-1][0]) ** 2)+((start_pos[1] - source_path[-1][1]) ** 2))
+            if distanceA > distanceB:  # punkt startowy jest na koncu wyznaczonej krawedzi
+                source_path[0] = end_pos
+                source_path[-1] = start_pos
+            else:
+                source_path[0] = start_pos
+                source_path[-1] = end_pos
+            return source_path
+        elif len(source_id) > 1 and self.graph.edges[edge]["wayType"] != way_type["twoWay"]:
             source_path = [self.source_nodes[i]["pos"] for i in source_id]
-            path_coordinates = self.get_corridor_path(edge_id, source_path)
-            return create_corridor_coordinates(path_coordinates)
+            source_path[0] = start_pos
+            source_path[-1] = end_pos
+            return source_path
+        elif len(source_id) == 1:
+            # krawedz nalezy do skrzyzowania
+            start_pos = self.graph.nodes[edge[0]]["pos"]
+            intersection_pos = [self.source_nodes[i]["pos"] for i in source_id]
+            end_pos = self.graph.nodes[edge[1]]["pos"]
+            return [start_pos, intersection_pos[0], end_pos]
 
-    def print_corridor(self, edge_id):
-        # pobranie wspolrzednych wezlow z grafu wlasciwego
-        source_id = [data[2]["sourceNodes"] for data in self.graph.edges(data=True) if data[2]["id"] == edge_id][0]
+    def get_corridor_coordinates(self, edge):
+        assert Task.beh_type["goto"] == self.graph.edges[edge]["behaviour"], "Corridors can be only created to" \
+                                                                             " 'goto' behaviur edge type"
+        corridor_path = self.get_corridor_path(edge)
+        line = LineString(corridor_path)
+        corridor = line.buffer(corridor_width / 2, cap_style=3, join_style=2)
+
+        poi_a = get_node_area(True, corridor_path)
+        poi_b = get_node_area(False, corridor_path)
+
+        # create final corridor
+        unia = unary_union([poi_b, corridor, poi_a])
+        x, y = unia.exterior.coords.xy
+        final_corridor_coordinates = [(x[i], y[i]) for i in range(len(x))]
+        # finalCorridorCoordinates = [(x,y),(x2,y2),...]
+        return final_corridor_coordinates
+
+    def print_corridor(self, edge):
+        source_id = [data[2]["sourceNodes"] for data in self.graph.edges(data=True) if data[0] == edge[0]
+                     and data[1] == edge[1]][0]
         source_path = [self.source_nodes[i]["pos"] for i in source_id]
-        # przesuniecie i wygenerowanie lamanej po ktorej bedzie poruszal sie robot
-        path_coordinates = self.get_corridor_path(edge_id, source_path)
-        # wygenerowanie korytarza
-        corridor_coordinates = self.get_corridor_coordinates(edge_id)
+        # wspolrzedne sciezki w korytarzu
+        path_coordinates = self.get_corridor_path(edge)
+        corridor_coordinates = self.get_corridor_coordinates(edge)
         # wyswietlenie korytarza
         x_source = [point[0] for point in source_path]
         y_source = [point[1] for point in source_path]
@@ -1119,6 +1065,8 @@ class SupervisorGraphCreator(DataConverter):
         y_path = [point[1] for point in path_coordinates]
         x_cor = [point[0] for point in corridor_coordinates]
         y_cor = [point[1] for point in corridor_coordinates]
+        plt.figure(figsize=(7,7))
+        plt.axis('equal')
         plt.plot(x_source, y_source, "g", x_path, y_path, "r", x_cor, y_cor, "b")
         plt.xlabel("x[m]")
         plt.ylabel("y[m]")
@@ -1129,6 +1077,7 @@ class SupervisorGraphCreator(DataConverter):
 
     def print_graph(self, plot_size=(45, 45)):
         plt.figure(figsize=plot_size)
+        plt.axis('equal')
         node_pos = nx.get_node_attributes(self.graph, "pos")
 
         max_robots = nx.get_edge_attributes(self.graph, "maxRobots")
