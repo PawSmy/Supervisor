@@ -511,6 +511,29 @@ def get_node_area(start, robot_path_coordinates):
     return poi
 
 
+def _get_intersection_step_node_pos(in_pos, out_pos, is_narrow, is_in_edge):
+    # in_pos wspolrzedne wezla laczacego sie ze skrzyzowaniem
+    # out_pos wspolrzedne wezla poprzedzajacego wezel laczacy sie ze skrzyzowaniem
+    translate_base_node = np.array([[1, 0, 0, in_pos[0]], [0, 1, 0, in_pos[1]],
+                                    [0, 0, 1, 0], [0, 0, 0, 1]])
+    angle_start = np.arctan2(out_pos[1] - in_pos[1], out_pos[0] - in_pos[0])
+    rotation_start_node = np.array([[math.cos(angle_start), -math.sin(angle_start), 0, 0],
+                                    [math.sin(angle_start), math.cos(angle_start), 0, 0],
+                                    [0, 0, 1, 0], [0, 0, 0, 1]])
+
+    if is_narrow:
+        path_to_intersection = np.array([[1, 0, 0, corridor_width / 2],
+                                        [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+        way_start = np.dot(np.dot(translate_base_node, rotation_start_node), path_to_intersection)
+    else:
+        path_to_intersection = np.array([[1, 0, 0, corridor_width / 2],
+                                         [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+        path_to_intersection[1][3] = corridor_width / 2 if is_in_edge else -corridor_width / 2
+        way_start = np.dot(np.dot(translate_base_node, rotation_start_node), path_to_intersection)
+
+    return way_start[0][3], way_start[1][3]
+
+
 class SupervisorGraphCreator(DataConverter):
     def __init__(self, source_nodes, source_edges):
         # odczyt danych, wywołanie odpowiednich funkcji i utworzenie właściwego grafu
@@ -1029,10 +1052,45 @@ class SupervisorGraphCreator(DataConverter):
             return source_path
         elif len(source_id) == 1:
             # krawedz nalezy do skrzyzowania
-            start_pos = self.graph.nodes[edge[0]]["pos"]
-            intersection_pos = [self.source_nodes[i]["pos"] for i in source_id]
-            end_pos = self.graph.nodes[edge[1]]["pos"]
-            return [start_pos, intersection_pos[0], end_pos]
+            return self.get_intersection_corridor_path(edge)
+
+    def get_intersection_corridor_path(self, edge):
+        source_node_id = [data[2]["sourceNodes"][0] for data in self.graph.edges(data=True) if data[0] == edge[0]
+                          and data[1] == edge[1]][0]
+        # wyznaczenie dla wezla startowego id poprzedzajacego wezla zrodla z
+        # pominieciem normalnych dla krawedzi wchodzacej do stanowiska
+        connected_in_edge = [data[2] for data in self.graph.edges(data=True)
+                             if edge[0] in [data[0], data[1]] and len(data[2]["sourceNodes"]) > 1][0]
+        previous_start_node_id = connected_in_edge["sourceNodes"][0] \
+            if connected_in_edge["sourceNodes"][0] != source_node_id \
+            else connected_in_edge["sourceNodes"][-1]
+
+        # wyznaczenie dla wezla koncowego id poprzedzajacego wezla zrodla z
+        # pominieciem normalnych dla krawedzi wychodzacej do stanowiska
+        connected_out_edge = [data[2] for data in self.graph.edges(data=True)
+                              if edge[1] in [data[0], data[1]] and len(data[2]["sourceNodes"]) > 1][0]
+        previous_end_node_id = connected_out_edge["sourceNodes"][0] \
+            if connected_out_edge["sourceNodes"][0] != source_node_id \
+            else connected_out_edge["sourceNodes"][-1]
+
+        if previous_start_node_id == previous_end_node_id:
+            # robot zawraca na skrzyzowaniu, bezposredni przejazd przez srodek nie jest konieczny.
+            return [self.graph.nodes[edge[0]]["pos"], self.graph.nodes[edge[1]]["pos"]]
+        else:
+            edge_in_pos = self.source_nodes[connected_in_edge["sourceNodes"][-1]]["pos"]
+            edge_in_previous_pos = self.source_nodes[connected_in_edge["sourceNodes"][-2]]["pos"]
+            is_in_edge_narrow = connected_in_edge["wayType"] != way_type["twoWay"]
+            start_pos = _get_intersection_step_node_pos(edge_in_pos, edge_in_previous_pos,
+                                                        is_in_edge_narrow, True)
+
+            edge_out_pos = self.source_nodes[connected_out_edge["sourceNodes"][0]]["pos"]
+            edge_out_previous_pos = self.source_nodes[connected_out_edge["sourceNodes"][1]]["pos"]
+            is_out_edge_narrow = connected_out_edge["wayType"] != way_type["twoWay"]
+            end_pos = _get_intersection_step_node_pos(edge_out_pos, edge_out_previous_pos, is_out_edge_narrow, False)
+
+            edge_int_in_pos = self.graph.nodes[edge[0]]["pos"]
+            edge_int_out_pos = self.graph.nodes[edge[1]]["pos"]
+            return [edge_int_in_pos, start_pos, end_pos, edge_int_out_pos]
 
     def get_corridor_coordinates(self, edge):
         assert Task.beh_type["goto"] == self.graph.edges[edge]["behaviour"], "Corridors can be only created to" \
@@ -1065,7 +1123,7 @@ class SupervisorGraphCreator(DataConverter):
         y_path = [point[1] for point in path_coordinates]
         x_cor = [point[0] for point in corridor_coordinates]
         y_cor = [point[1] for point in corridor_coordinates]
-        plt.figure(figsize=(7,7))
+        plt.figure(figsize=(7, 7))
         plt.axis('equal')
         plt.plot(x_source, y_source, "g", x_path, y_path, "r", x_cor, y_cor, "b")
         plt.xlabel("x[m]")
