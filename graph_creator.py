@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt  # do wizualizaccji i rysowania grafu
 import json
 from shapely.geometry import LineString
 from shapely.ops import unary_union
-from dispatcher import Task
+from dispatcher import Behaviour
 
 corridor_width = 0.3  # 1 szerokosc korytarza dla pojedynczego robota
 robot_length = 0.4  # 0.6
@@ -609,21 +609,21 @@ class SupervisorGraphCreator(DataConverter):
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["dock"], sourceNode=node_id,
                                 color=node_color["dock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour=Task.beh_type["dock"],
+                                behaviour= Behaviour.TYPES["dock"],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["wait"], sourceNode=node_id,
                                 color=node_color["wait"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour=Task.beh_type["wait"],
+                                behaviour= Behaviour.TYPES["wait"],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["undock"], sourceNode=node_id,
                                 color=node_color["undock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour=Task.beh_type["undock"],
+                                behaviour= Behaviour.TYPES["undock"],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
@@ -638,7 +638,7 @@ class SupervisorGraphCreator(DataConverter):
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["wait"], sourceNode=node_id,
                                 color=node_color["wait"], poiId=no_dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour=Task.beh_type["wait"],
+                                behaviour= Behaviour.TYPES["wait"],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
 
@@ -669,7 +669,7 @@ class SupervisorGraphCreator(DataConverter):
                 self.graph.add_node(self.graph_node_id, nodeType=new_node_type["intersection_in"],
                                     sourceNode=source_node_id[-1], color=node_color["in"], poiId=0)
                 self.graph.add_edge(self.graph_node_id - 1, self.graph_node_id, id=self.edge_id, weight=0,
-                                    behaviour=Task.beh_type["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
+                                    behaviour= Behaviour.TYPES["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
                                     sourceEdges=combined_edges[i]["sourceEdges"])
                 self.graph_node_id = self.graph_node_id + 1
@@ -684,7 +684,7 @@ class SupervisorGraphCreator(DataConverter):
                 self.graph_node_id = self.graph_node_id + 1
                 g_node_id = self.get_connected_graph_node_id(source_node_id[0])
                 self.graph.add_edge(g_node_id, self.graph_node_id - 1, id=self.edge_id, weight=0,
-                                    behaviour=Task.beh_type["goto"],
+                                    behaviour= Behaviour.TYPES["goto"],
                                     edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
                                     sourceEdges=combined_edges[i]["sourceEdges"])
@@ -698,7 +698,7 @@ class SupervisorGraphCreator(DataConverter):
                 self.graph_node_id = self.graph_node_id + 1
                 g_node_id = self.get_connected_graph_node_id(source_node_id[-1], edge_start_node=False)
                 self.graph.add_edge(self.graph_node_id - 1, g_node_id, id=self.edge_id, weight=0,
-                                    behaviour=Task.beh_type["goto"],
+                                    behaviour= Behaviour.TYPES["goto"],
                                     edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
                                     sourceEdges=combined_edges[i]["sourceEdges"])
@@ -707,7 +707,7 @@ class SupervisorGraphCreator(DataConverter):
                 start_node_id = self.get_connected_graph_node_id(source_node_id[0])
                 end_node_id = self.get_connected_graph_node_id(source_node_id[-1], edge_start_node=False)
                 self.graph.add_edge(start_node_id, end_node_id, id=self.edge_id, weight=0,
-                                    behaviour=Task.beh_type["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
+                                    behaviour= Behaviour.TYPES["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
                                     sourceEdges=combined_edges[i]["sourceEdges"])
                 self.edge_id = self.edge_id + 1
@@ -769,7 +769,7 @@ class SupervisorGraphCreator(DataConverter):
                 wait_dep_intersection = True
             if len(all_combinations) != 0:
                 for edge in all_combinations:
-                    self.graph.add_edge(edge[0], edge[1], id=self.edge_id, weight=0, behaviour=Task.beh_type["goto"],
+                    self.graph.add_edge(edge[0], edge[1], id=self.edge_id, weight=0, behaviour= Behaviour.TYPES["goto"],
                                         edgeGroupId=group_id, wayType=way_type["oneWay"],
                                         sourceNodes=[i], sourceEdges=[0])
                     self.edge_id = self.edge_id + 1
@@ -979,10 +979,10 @@ class SupervisorGraphCreator(DataConverter):
                         break
             if is_blocked:
                 self.graph.edges[i]["weight"] = None
-            elif edge["behaviour"] == Task.beh_type["goto"] and edge["edgeGroupId"] != 0 \
+            elif edge["behaviour"] ==  Behaviour.TYPES["goto"] and edge["edgeGroupId"] != 0 \
                     and len(edge["sourceNodes"]) == 1:
                 self.graph.edges[i]["weight"] = 3
-            elif edge["behaviour"] == Task.beh_type["goto"]:
+            elif edge["behaviour"] ==  Behaviour.TYPES["goto"]:
                 nodes_pos = []
                 for node_id in edge["sourceNodes"]:
                     nodes_pos.append(self.source_nodes[node_id]["pos"])
@@ -991,11 +991,11 @@ class SupervisorGraphCreator(DataConverter):
                     dist = dist + math.hypot(nodes_pos[j + 1][0] - nodes_pos[j][0],
                                              nodes_pos[j + 1][1] - nodes_pos[j][1])
                 self.graph.edges[i]["weight"] = math.ceil(dist / robot_velocity)
-            elif edge["behaviour"] == Task.beh_type["dock"]:
+            elif edge["behaviour"] ==  Behaviour.TYPES["dock"]:
                 self.graph.edges[i]["weight"] = docking_time_weight
-            elif edge["behaviour"] == Task.beh_type["wait"]:
+            elif edge["behaviour"] ==  Behaviour.TYPES["wait"]:
                 self.graph.edges[i]["weight"] = wait_weight
-            elif edge["behaviour"] == Task.beh_type["undock"]:
+            elif edge["behaviour"] ==  Behaviour.TYPES["undock"]:
                 self.graph.edges[i]["weight"] = undocking_time_weight
 
     def set_max_robots(self):
@@ -1006,7 +1006,7 @@ class SupervisorGraphCreator(DataConverter):
         for i in self.graph.edges:
             edge = self.graph.edges[i]
             no_poi_nodes = not (edge["sourceNodes"][0] in operation_pois or edge["sourceNodes"][-1] in operation_pois)
-            if edge["behaviour"] == Task.beh_type["goto"] and len(edge["sourceNodes"]) != 1 and no_poi_nodes:
+            if edge["behaviour"] ==  Behaviour.TYPES["goto"] and len(edge["sourceNodes"]) != 1 and no_poi_nodes:
                 nodes_pos = []
                 for node_id in edge["sourceNodes"]:
                     nodes_pos.append(self.source_nodes[node_id]["pos"])
@@ -1093,7 +1093,7 @@ class SupervisorGraphCreator(DataConverter):
             return [edge_int_in_pos, start_pos, end_pos, edge_int_out_pos]
 
     def get_corridor_coordinates(self, edge):
-        assert Task.beh_type["goto"] == self.graph.edges[edge]["behaviour"], "Corridors can be only created to" \
+        assert  Behaviour.TYPES["goto"] == self.graph.edges[edge]["behaviour"], "Corridors can be only created to" \
                                                                              " 'goto' behaviur edge type"
         corridor_path = self.get_corridor_path(edge)
         line = LineString(corridor_path)
@@ -1132,6 +1132,9 @@ class SupervisorGraphCreator(DataConverter):
 
     def get_graph(self):
         return self.graph
+
+    def get_planning_graph(self):
+        pass
 
     def print_graph(self, plot_size=(45, 45)):
         plt.figure(figsize=plot_size)
