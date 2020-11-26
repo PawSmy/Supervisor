@@ -821,7 +821,7 @@ class SupervisorGraphCreator(DataConverter):
             edges = [edge for edge in self.graph.edges(data=True)
                      if edge[1] in graph_node_ids]
             # powinny zostac znalezione dwie krawedzie spelniajace wymagania
-            # rint("edges", edges)
+
             assert len(edges) == 2, "waiting path, departure-waiting poi error"
             if edges[0][2]["edgeGroupId"] != 0:
                 # pierwsza zapisana krawedz zwiazana jest ze stanowiskiem
@@ -843,13 +843,13 @@ class SupervisorGraphCreator(DataConverter):
             node_type = node_data["nodeType"]
             if node_type == new_node_type["dock"]:  # zakomentowane funkcje na potrzeby testow polaczenia pomiedzy
                 # krawedziami
-                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)
+                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges) # node_position
             elif node_type == new_node_type["wait"]:
-                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)
+                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges) #node_position  #
             elif node_type == new_node_type["undock"]:
-                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)
+                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)#  node_position  #
             elif node_type == new_node_type["end"]:
-                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)
+                self.graph.nodes[node_id]["pos"] =  self.get_poi_nodes_pos(node_id, combined_edges) # node_position  #
             elif node_type == new_node_type["noChanges"]:
                 self.graph.nodes[node_id]["pos"] = node_position
             elif node_type == new_node_type["intersection_in"]:
