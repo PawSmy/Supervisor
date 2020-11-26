@@ -979,10 +979,12 @@ class Dispatcher:
             group_id = self.planning_graph.get_group_id(next_edge)
             robots_in_group_edge = self.planning_graph.get_robots_in_group_edge(next_edge)
             if group_id != 0:
+
                 group_edges = self.planning_graph.get_edges_by_group(group_id)
                 planned_robots_ids = self.robots_plan.get_robots_id_on_given_edges(group_edges)
+                future_planed_robots_id = self.robots_plan.get_robots_id_on_future_edges(group_edges)
 
-                robots_ids = [i for i in np.unique(robots_in_group_edge + planned_robots_ids)]
+                robots_ids = [i for i in np.unique(robots_in_group_edge + planned_robots_ids + future_planed_robots_id)]
                 if robot.id in robots_ids:
                     robots_ids.remove(robot.id)
                 edge_is_available = 0 == len(robots_ids)
@@ -991,7 +993,8 @@ class Dispatcher:
                 # 3. sprawdzenie ile aktualnie robotow porusza sie dana krawedzia
                 n_robots_on_edge = len(robots_in_group_edge)
                 # 4. sprawdzenie ile robotow ze statusem isFree ma juz przypisana ta krawedz
-                n_assigned_robots_on_edge = len(self.robots_plan.get_robots_id_on_given_edges([next_edge]))
+                n_assigned_robots_on_edge = len(self.robots_plan.get_robots_id_on_given_edges([next_edge]) +
+                                                self.robots_plan.get_robots_id_on_future_edges([next_edge]))
                 # 5. pobranie maksymalnej liczby robotow i sprawdzenie czy ta liczba jest wieksza niz suma robotow
                 # z punktu 2 i 3. jesli liczba jest mniejsza to ta krawedz jest przypisana
                 max_robots = self.planning_graph.get_max_allowed_robots(next_edge)
