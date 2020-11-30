@@ -74,6 +74,11 @@ node_color = {  # do celow wizualizacji i podgladu
 }
 
 
+class GraphError(Exception):
+    """Base class for exceptions in this module."""
+    pass
+
+
 def convert_database_nodes(source_nodes):
     """
     Konwersja danych z bazy danych do obslugiwanego formatu przez klasy.
@@ -194,9 +199,9 @@ class DataConverter:
                         break
 
             if previos_edge_len == len(edges_normal_nodes):
-                assert len(
-                    edges_normal_nodes) == 0, "Normal nodes error. Path contains normal nodes should start and end " \
-                                              "from different type of node."
+                if len(edges_normal_nodes) != 0:
+                    raise GraphError("Normal nodes error. Path contains normal nodes should start and end "
+                                     "from different type of node.")
                 break
             else:
                 previos_edge_len = len(edges_normal_nodes)
@@ -210,11 +215,12 @@ class DataConverter:
             previous_path_type = self.source_edges[edges_id[0]]["type"]
             for j in range(len(edges_id) - 1):
                 current_path_type = self.source_edges[edges_id[j + 1]]["type"]
-                assert previous_path_type == current_path_type, "Different path type connected to normal nodes."
+                if previous_path_type != current_path_type:
+                    raise GraphError("Different path type connected to normal nodes.")
             end_node_id = combined_path[i]["connectedNodes"][-1]
             end_node_type = self.source_nodes[end_node_id]["type"]
-            assert end_node_type != base_node_type[
-                "normal"], "Path contains normal nodes should be end different type of nodes."
+            if end_node_type == base_node_type["normal"]:
+                raise GraphError("Path contains normal nodes should be end different type of nodes.")
 
     def _combined_normal_nodes_edges(self, edges, combined_path):
         # utworzenie listy krawędzi z pominięciem wezlow normalnych do dalszych analiz polaczen miedzy
@@ -261,19 +267,19 @@ class DataConverter:
                         if self.reduced_edges[j]["sourceNodes"][-1] == i]
             out_nodes = [self.reduced_edges[j]["sourceNodes"][-1] for j in self.reduced_edges
                          if self.reduced_edges[j]["sourceNodes"][0] == i]
-            assert len(in_nodes) == 1, "Only one waiting/waiting-departure POI should be connected with POI."
-            assert len(out_nodes) == 1, "Only one departure/waiting-departure POI should be connected with POI."
+            if len(in_nodes) != 1:
+                raise GraphError("Only one waiting/waiting-departure POI should be connected with POI.")
+
+            if len(out_nodes) != 1:
+                raise GraphError("Only one departure/waiting-departure POI should be connected with POI.")
 
             in_node_type = self.source_nodes[in_nodes[0]]["type"]
             out_node_type = self.source_nodes[out_nodes[0]]["type"]
-
-            assert (in_node_type == base_node_type["waiting"] and out_node_type == base_node_type["departure"]) \
-                   or (in_node_type == base_node_type["waiting-departure"] and
-                       out_node_type == base_node_type["waiting-departure"]), "Connected POI with given nodes not " \
-                                                                              "allowed. Available connection: " \
-                                                                              "waiting->POI->departure or" \
-                                                                              " waiting-departure->POI->" \
-                                                                              "waiting-departure"
+            if not ((in_node_type == base_node_type["waiting"] and out_node_type == base_node_type["departure"])
+                    or (in_node_type == base_node_type["waiting-departure"] and
+                    out_node_type == base_node_type["waiting-departure"])):
+                raise GraphError("Connected POI with given nodes not allowed. Available connection: "
+                                 "waiting->POI->departure or waiting-departure->POI-> waiting-departure")
 
             in_edge_type = [self.reduced_edges[j]["wayType"] for j in self.reduced_edges
                             if self.reduced_edges[j]["sourceNodes"][0] == in_nodes[0]
@@ -283,14 +289,12 @@ class DataConverter:
                              if self.reduced_edges[j]["sourceNodes"][0] == i
                              and self.reduced_edges[j]["sourceNodes"][-1] == out_nodes[0]]
             if in_node_type == base_node_type["waiting"]:
-                assert in_edge_type[0] == way_type["oneWay"] and \
-                       out_edge_type[0] == way_type[
-                           "oneWay"], "Edges should be one way in connection waiting->POI->departure"
+                if not (in_edge_type[0] == way_type["oneWay"] and out_edge_type[0] == way_type["oneWay"]):
+                    raise GraphError("Edges should be one way in connection waiting->POI->departure")
             else:
-                assert in_edge_type[0] == way_type["narrowTwoWay"] and \
-                       out_edge_type[0] == way_type[
-                           "narrowTwoWay"], "Edges should be narrow two way in connection " \
-                                            "waiting-departure->POI->waiting-departure"
+                if not (in_edge_type[0] == way_type["narrowTwoWay"] and out_edge_type[0] == way_type["narrowTwoWay"]):
+                    raise GraphError("Edges should be narrow two way in connection "
+                                     "waiting-departure->POI->waiting-departure")
 
     def validate_parking_connection_nodes(self):
         # pobranie wszystkich miejsc parkingowych
@@ -303,13 +307,16 @@ class DataConverter:
                         if self.reduced_edges[j]["sourceNodes"][-1] == i]
             out_nodes = [self.reduced_edges[j]["sourceNodes"][-1] for j in self.reduced_edges
                          if self.reduced_edges[j]["sourceNodes"][0] == i]
-            assert len(in_nodes) == 1, "Only one intersection node should be connected as input with parking."
-            assert len(out_nodes) == 1, "Only one intersection node should be connected as output with parking."
+            if len(in_nodes) != 1:
+                raise GraphError("Only one intersection node should be connected as input with parking.")
+            if len(out_nodes) != 1:
+                raise GraphError("Only one intersection node should be connected as output with parking.")
+
             in_node_type = self.source_nodes[in_nodes[0]]["type"]
             out_node_type = self.source_nodes[out_nodes[0]]["type"]
-            assert (in_node_type == base_node_type["intersection"] and out_node_type == base_node_type[
-                "intersection"]), "Connected Parking with given nodes not allowed. Available connection: " \
-                                  "intersection->POI->intersection."
+            if not (in_node_type == base_node_type["intersection"] and out_node_type == base_node_type["intersection"]):
+                raise GraphError("Connected Parking with given nodes not allowed. Available connection: "
+                                 "intersection->POI->intersection.")
 
             in_edge_type = [self.reduced_edges[j]["wayType"] for j in self.reduced_edges
                             if self.reduced_edges[j]["sourceNodes"][0] == in_nodes[0]
@@ -318,10 +325,8 @@ class DataConverter:
             out_edge_type = [self.reduced_edges[j]["wayType"] for j in self.reduced_edges
                              if self.reduced_edges[j]["sourceNodes"][0] == i
                              and self.reduced_edges[j]["sourceNodes"][-1] == out_nodes[0]]
-            assert in_edge_type[0] == way_type["narrowTwoWay"] and \
-                   out_edge_type[0] == way_type[
-                       "narrowTwoWay"], "Edges should be narrow two way in connection" \
-                                        " intersection->parking->intersection."
+            if not (in_edge_type[0] == way_type["narrowTwoWay"] and out_edge_type[0] == way_type["narrowTwoWay"]):
+                raise GraphError("Edges should be narrow two way in connection intersection->parking->intersection.")
 
     def validate_queue_connection_nodes(self):
         # pobranie wszystkich miejsc w ktorych kolejkowane beda roboty do parkowania
@@ -334,13 +339,16 @@ class DataConverter:
                         if self.reduced_edges[j]["sourceNodes"][-1] == i]
             out_nodes = [self.reduced_edges[j]["sourceNodes"][-1] for j in self.reduced_edges
                          if self.reduced_edges[j]["sourceNodes"][0] == i]
-            assert len(in_nodes) == 1, "Only one intersection node should be connected as input with queue."
-            assert len(out_nodes) == 1, "Only one intersection node should be connected as output with queue."
+            if len(in_nodes) != 1:
+                raise GraphError("Only one intersection node should be connected as input with queue.")
+            if len(out_nodes) != 1:
+                raise GraphError("Only one intersection node should be connected as output with queue.")
+
             in_node_type = self.source_nodes[in_nodes[0]]["type"]
             out_node_type = self.source_nodes[out_nodes[0]]["type"]
-            assert (in_node_type == base_node_type["intersection"] and out_node_type == base_node_type[
-                "intersection"]), "Connected Queue with given nodes not allowed. Available connection: " \
-                                  "intersection->queue->intersection."
+            if not (in_node_type == base_node_type["intersection"] and out_node_type == base_node_type["intersection"]):
+                raise GraphError("Connected Queue with given nodes not allowed. Available connection: "
+                                 "intersection->queue->intersection.")
 
             in_edge_type = [self.reduced_edges[j]["wayType"] for j in self.reduced_edges
                             if self.reduced_edges[j]["sourceNodes"][0] == in_nodes[0]
@@ -349,9 +357,8 @@ class DataConverter:
             out_edge_type = [self.reduced_edges[j]["wayType"] for j in self.reduced_edges
                              if self.reduced_edges[j]["sourceNodes"][0] == i
                              and self.reduced_edges[j]["sourceNodes"][-1] == out_nodes[0]]
-            assert in_edge_type[0] == way_type["oneWay"] \
-                   and out_edge_type[0] == way_type[
-                       "oneWay"], "Edges should be one way in connection intersection->queue->intersection."
+            if not (in_edge_type[0] == way_type["oneWay"] and out_edge_type[0] == way_type["oneWay"]):
+                raise GraphError("Edges should be one way in connection intersection->queue->intersection.")
 
     def validate_waiting_connection_nodes(self):
         # pobranie wszystkich miejsc w ktorych roboty oczekuja na dojazd do stanowiska (waiting)
@@ -364,15 +371,19 @@ class DataConverter:
                         if self.reduced_edges[j]["sourceNodes"][-1] == i]
             out_nodes = [self.reduced_edges[j]["sourceNodes"][-1] for j in self.reduced_edges
                          if self.reduced_edges[j]["sourceNodes"][0] == i]
-            assert len(in_nodes) == 1, "Only one intersection node should be connected as input with waiting node."
-            assert len(out_nodes) == 1, "Only one POI node should be connected as output with waiting node."
+            if len(in_nodes) != 1:
+                raise GraphError("Only one intersection node should be connected as input with waiting node.")
+            if len(out_nodes) != 1:
+                raise GraphError("Only one POI node should be connected as output with waiting node.")
+
             in_node_type = self.source_nodes[in_nodes[0]]["type"]
             out_node_type = self.source_nodes[out_nodes[0]]["type"]["nodeSection"]
-            assert (in_node_type == base_node_type["intersection"] and
+            if not (in_node_type == base_node_type["intersection"] and
                     (out_node_type == base_node_section_type["dockWaitUndock"] or
-                     out_node_type == base_node_section_type[
-                         "waitPOI"])), "Connected waiting node with given nodes not allowed.Available connection: " \
-                                       " intersection->waiting->POI."
+                     out_node_type == base_node_section_type["waitPOI"])):
+                raise GraphError("Connected waiting node with given nodes not allowed.Available connection: "
+                                 "intersection->waiting->POI.")
+
             in_edge_type = [self.reduced_edges[j]["wayType"] for j in self.reduced_edges
                             if self.reduced_edges[j]["sourceNodes"][0] == in_nodes[0]
                             and self.reduced_edges[j]["sourceNodes"][-1] == i]
@@ -380,9 +391,8 @@ class DataConverter:
             out_edge_type = [self.reduced_edges[j]["wayType"] for j in self.reduced_edges
                              if self.reduced_edges[j]["sourceNodes"][0] == i
                              and self.reduced_edges[j]["sourceNodes"][-1] == out_nodes[0]]
-            assert in_edge_type[0] == way_type["oneWay"] \
-                   and out_edge_type[0] == way_type[
-                       "oneWay"], "Edges should be one way in connection intersection->waiting->POI."
+            if not (in_edge_type[0] == way_type["oneWay"] and out_edge_type[0] == way_type["oneWay"]):
+                raise GraphError("Edges should be one way in connection intersection->waiting->POI.")
 
     def validate_departure_connection_nodes(self):
         # pobranie wszystkich miejsc w ktorych roboty odjeżdżają od stanowiska (departure)
@@ -395,15 +405,19 @@ class DataConverter:
                         if self.reduced_edges[j]["sourceNodes"][-1] == i]
             out_nodes = [self.reduced_edges[j]["sourceNodes"][-1] for j in self.reduced_edges
                          if self.reduced_edges[j]["sourceNodes"][0] == i]
-            assert len(in_nodes) == 1, "Only one POI node should be connected as input with departure node."
-            assert len(out_nodes) == 1, "Only one departure node should be connected as output with intersection node."
+            if len(in_nodes) != 1:
+                raise GraphError("Only one POI node should be connected as input with departure node.")
+            if len(out_nodes) != 1:
+                raise GraphError("Only one departure node should be connected as output with intersection node.")
+
             in_node_type = self.source_nodes[in_nodes[0]]["type"]["nodeSection"]
             out_node_type = self.source_nodes[out_nodes[0]]["type"]
-            assert (out_node_type == base_node_type["intersection"] and
+            if not (out_node_type == base_node_type["intersection"] and
                     (in_node_type == base_node_section_type["dockWaitUndock"] or
-                     in_node_type == base_node_section_type[
-                         "waitPOI"])), "Connected departure node with given nodes not allowed. Available connection: " \
-                                       "POI->departure->intersection."
+                     in_node_type == base_node_section_type["waitPOI"])):
+                raise GraphError("Connected departure node with given nodes not allowed. Available connection: "
+                                 "POI->departure->intersection.")
+
             in_edge_type = [self.reduced_edges[j]["wayType"] for j in self.reduced_edges
                             if self.reduced_edges[j]["sourceNodes"][0] == in_nodes[0]
                             and self.reduced_edges[j]["sourceNodes"][-1] == i]
@@ -411,9 +425,8 @@ class DataConverter:
             out_edge_type = [self.reduced_edges[j]["wayType"] for j in self.reduced_edges
                              if self.reduced_edges[j]["sourceNodes"][0] == i
                              and self.reduced_edges[j]["sourceNodes"][-1] == out_nodes[0]]
-            assert in_edge_type[0] == way_type["oneWay"] \
-                   and out_edge_type[0] == way_type[
-                       "oneWay"], "Edges should be one way in connection intersection->queue->intersection."
+            if not (in_edge_type[0] == way_type["oneWay"] and out_edge_type[0] == way_type["oneWay"]):
+                raise GraphError("Edges should be one way in connection intersection->queue->intersection.")
 
     def validate_wait_dep_connection_nodes(self):
         # TODO dokonczyzc funkcje + przetestowac dzialanie funkcji i zwracanie bledow w przypadkach testowych
@@ -428,7 +441,8 @@ class DataConverter:
                         if self.reduced_edges[j]["sourceNodes"][-1] == i]
             out_nodes = [self.reduced_edges[j]["sourceNodes"][-1] for j in self.reduced_edges
                          if self.reduced_edges[j]["sourceNodes"][0] == i]
-            assert len(in_nodes) == 2 and len(out_nodes) == 2, "Too much nodes connected with witing-departure node."
+            if not (len(in_nodes) == 2 and len(out_nodes) == 2):
+                raise GraphError("Too much nodes connected with witing-departure node.")
 
             in_node_type = [self.source_nodes[in_nodes[0]]["type"], self.source_nodes[in_nodes[1]]["type"]]
             out_node_type = [self.source_nodes[out_nodes[0]]["type"], self.source_nodes[out_nodes[1]]["type"]]
@@ -437,14 +451,14 @@ class DataConverter:
             out_node_type_section = [self.source_nodes[out_nodes[0]]["type"]["nodeSection"],
                                      self.source_nodes[out_nodes[1]]["type"]["nodeSection"]]
 
-            assert (base_node_type["intersection"] in in_node_type) \
-                   and (base_node_section_type["dockWaitUndock"] in in_node_type_section or base_node_section_type[
-                        "waitPOI"] in in_node_type_section) \
-                   and (base_node_type["intersection"] in out_node_type) \
-                   and (base_node_section_type["dockWaitUndock"] in out_node_type_section or base_node_section_type[
-                        "waitPOI"] in out_node_type_section), "Connected waiting-departure node with given nodes not " \
-                                                              "allowed. Node should be connected with intersection " \
-                                                              "and POI."
+            if not ((base_node_type["intersection"] in in_node_type)
+                    and (base_node_section_type["dockWaitUndock"] in in_node_type_section or base_node_section_type[
+                        "waitPOI"] in in_node_type_section) and (base_node_type["intersection"] in out_node_type)
+                    and (base_node_section_type["dockWaitUndock"] in out_node_type_section or base_node_section_type[
+                        "waitPOI"] in out_node_type_section)):
+                raise GraphError("Connected waiting-departure node with given nodes not allowed. Node should be "
+                                 "connected with intersection and POI.")
+
             # powstale krawedzie z polaczen powinny byc odpowiednio dwukierunkowe szerokie oraz waskie dwukierunkowe
             inter_wait_dep_path_nodes = []
             poi_wait_dep_path_nodes = []
@@ -478,12 +492,13 @@ class DataConverter:
                     if edge["sourceNodes"][0] == path[0] and edge["sourceNodes"][-1] == path[1]:
                         poi_wait_dep_path_type.append(edge["wayType"])
 
-            assert inter_wait_dep_path_type[0] == way_type["twoWay"] \
-                   and inter_wait_dep_path_type[1] == way_type["twoWay"], \
-                   "Edges should be twoWay in connection intersection<->waiting-departure."
-            assert poi_wait_dep_path_type[0] == way_type["narrowTwoWay"] \
-                   and poi_wait_dep_path_type[1] == way_type["narrowTwoWay"], \
-                   "Edges should be twoNarrowWay in connection waiting-departure<->POI"
+            if not (inter_wait_dep_path_type[0] == way_type["twoWay"]
+                    and inter_wait_dep_path_type[1] == way_type["twoWay"]):
+                raise GraphError("Edges should be twoWay in connection intersection<->waiting-departure.")
+
+            if not (poi_wait_dep_path_type[0] == way_type["narrowTwoWay"]
+                    and poi_wait_dep_path_type[1] == way_type["narrowTwoWay"]):
+                raise GraphError("Edges should be twoNarrowWay in connection waiting-departure<->POI")
 
     def get_graph_data(self):
         return self.reduced_edges
@@ -609,21 +624,21 @@ class SupervisorGraphCreator(DataConverter):
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["dock"], sourceNode=node_id,
                                 color=node_color["dock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour= Behaviour.TYPES["dock"],
+                                behaviour=Behaviour.TYPES["dock"],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["wait"], sourceNode=node_id,
                                 color=node_color["wait"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour= Behaviour.TYPES["wait"],
+                                behaviour=Behaviour.TYPES["wait"],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["undock"], sourceNode=node_id,
                                 color=node_color["undock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour= Behaviour.TYPES["undock"],
+                                behaviour=Behaviour.TYPES["undock"],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
@@ -638,7 +653,7 @@ class SupervisorGraphCreator(DataConverter):
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["wait"], sourceNode=node_id,
                                 color=node_color["wait"], poiId=no_dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour= Behaviour.TYPES["wait"],
+                                behaviour=Behaviour.TYPES["wait"],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
 
@@ -669,7 +684,7 @@ class SupervisorGraphCreator(DataConverter):
                 self.graph.add_node(self.graph_node_id, nodeType=new_node_type["intersection_in"],
                                     sourceNode=source_node_id[-1], color=node_color["in"], poiId=0)
                 self.graph.add_edge(self.graph_node_id - 1, self.graph_node_id, id=self.edge_id, weight=0,
-                                    behaviour= Behaviour.TYPES["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
+                                    behaviour=Behaviour.TYPES["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
                                     sourceEdges=combined_edges[i]["sourceEdges"])
                 self.graph_node_id = self.graph_node_id + 1
@@ -684,7 +699,7 @@ class SupervisorGraphCreator(DataConverter):
                 self.graph_node_id = self.graph_node_id + 1
                 g_node_id = self.get_connected_graph_node_id(source_node_id[0])
                 self.graph.add_edge(g_node_id, self.graph_node_id - 1, id=self.edge_id, weight=0,
-                                    behaviour= Behaviour.TYPES["goto"],
+                                    behaviour=Behaviour.TYPES["goto"],
                                     edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
                                     sourceEdges=combined_edges[i]["sourceEdges"])
@@ -698,7 +713,7 @@ class SupervisorGraphCreator(DataConverter):
                 self.graph_node_id = self.graph_node_id + 1
                 g_node_id = self.get_connected_graph_node_id(source_node_id[-1], edge_start_node=False)
                 self.graph.add_edge(self.graph_node_id - 1, g_node_id, id=self.edge_id, weight=0,
-                                    behaviour= Behaviour.TYPES["goto"],
+                                    behaviour=Behaviour.TYPES["goto"],
                                     edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
                                     sourceEdges=combined_edges[i]["sourceEdges"])
@@ -707,7 +722,7 @@ class SupervisorGraphCreator(DataConverter):
                 start_node_id = self.get_connected_graph_node_id(source_node_id[0])
                 end_node_id = self.get_connected_graph_node_id(source_node_id[-1], edge_start_node=False)
                 self.graph.add_edge(start_node_id, end_node_id, id=self.edge_id, weight=0,
-                                    behaviour= Behaviour.TYPES["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
+                                    behaviour=Behaviour.TYPES["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
                                     sourceEdges=combined_edges[i]["sourceEdges"])
                 self.edge_id = self.edge_id + 1
@@ -769,7 +784,7 @@ class SupervisorGraphCreator(DataConverter):
                 wait_dep_intersection = True
             if len(all_combinations) != 0:
                 for edge in all_combinations:
-                    self.graph.add_edge(edge[0], edge[1], id=self.edge_id, weight=0, behaviour= Behaviour.TYPES["goto"],
+                    self.graph.add_edge(edge[0], edge[1], id=self.edge_id, weight=0, behaviour=Behaviour.TYPES["goto"],
                                         edgeGroupId=group_id, wayType=way_type["oneWay"],
                                         sourceNodes=[i], sourceEdges=[0])
                     self.edge_id = self.edge_id + 1
@@ -821,8 +836,9 @@ class SupervisorGraphCreator(DataConverter):
             edges = [edge for edge in self.graph.edges(data=True)
                      if edge[1] in graph_node_ids]
             # powinny zostac znalezione dwie krawedzie spelniajace wymagania
+            if len(edges) != 2:
+                raise GraphError("waiting path, departure-waiting poi error")
 
-            assert len(edges) == 2, "waiting path, departure-waiting poi error"
             if edges[0][2]["edgeGroupId"] != 0:
                 # pierwsza zapisana krawedz zwiazana jest ze stanowiskiem
                 # druga dotyczy oczekiwania
@@ -843,13 +859,13 @@ class SupervisorGraphCreator(DataConverter):
             node_type = node_data["nodeType"]
             if node_type == new_node_type["dock"]:  # zakomentowane funkcje na potrzeby testow polaczenia pomiedzy
                 # krawedziami
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges) # node_position
+                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)  # node_position
             elif node_type == new_node_type["wait"]:
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges) #node_position  #
+                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)  # node_position  #
             elif node_type == new_node_type["undock"]:
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)#  node_position  #
+                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)  # node_position  #
             elif node_type == new_node_type["end"]:
-                self.graph.nodes[node_id]["pos"] =  self.get_poi_nodes_pos(node_id, combined_edges) # node_position  #
+                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)  # node_position  #
             elif node_type == new_node_type["noChanges"]:
                 self.graph.nodes[node_id]["pos"] = node_position
             elif node_type == new_node_type["intersection_in"]:
@@ -979,10 +995,10 @@ class SupervisorGraphCreator(DataConverter):
                         break
             if is_blocked:
                 self.graph.edges[i]["weight"] = None
-            elif edge["behaviour"] ==  Behaviour.TYPES["goto"] and edge["edgeGroupId"] != 0 \
+            elif edge["behaviour"] == Behaviour.TYPES["goto"] and edge["edgeGroupId"] != 0 \
                     and len(edge["sourceNodes"]) == 1:
                 self.graph.edges[i]["weight"] = 3
-            elif edge["behaviour"] ==  Behaviour.TYPES["goto"]:
+            elif edge["behaviour"] == Behaviour.TYPES["goto"]:
                 nodes_pos = []
                 for node_id in edge["sourceNodes"]:
                     nodes_pos.append(self.source_nodes[node_id]["pos"])
@@ -991,11 +1007,11 @@ class SupervisorGraphCreator(DataConverter):
                     dist = dist + math.hypot(nodes_pos[j + 1][0] - nodes_pos[j][0],
                                              nodes_pos[j + 1][1] - nodes_pos[j][1])
                 self.graph.edges[i]["weight"] = math.ceil(dist / robot_velocity)
-            elif edge["behaviour"] ==  Behaviour.TYPES["dock"]:
+            elif edge["behaviour"] == Behaviour.TYPES["dock"]:
                 self.graph.edges[i]["weight"] = docking_time_weight
-            elif edge["behaviour"] ==  Behaviour.TYPES["wait"]:
+            elif edge["behaviour"] == Behaviour.TYPES["wait"]:
                 self.graph.edges[i]["weight"] = wait_weight
-            elif edge["behaviour"] ==  Behaviour.TYPES["undock"]:
+            elif edge["behaviour"] == Behaviour.TYPES["undock"]:
                 self.graph.edges[i]["weight"] = undocking_time_weight
 
     def set_max_robots(self):
@@ -1006,7 +1022,7 @@ class SupervisorGraphCreator(DataConverter):
         for i in self.graph.edges:
             edge = self.graph.edges[i]
             no_poi_nodes = not (edge["sourceNodes"][0] in operation_pois or edge["sourceNodes"][-1] in operation_pois)
-            if edge["behaviour"] ==  Behaviour.TYPES["goto"] and len(edge["sourceNodes"]) != 1 and no_poi_nodes:
+            if edge["behaviour"] == Behaviour.TYPES["goto"] and len(edge["sourceNodes"]) != 1 and no_poi_nodes:
                 nodes_pos = []
                 for node_id in edge["sourceNodes"]:
                     nodes_pos.append(self.source_nodes[node_id]["pos"])
@@ -1093,8 +1109,9 @@ class SupervisorGraphCreator(DataConverter):
             return [edge_int_in_pos, start_pos, end_pos, edge_int_out_pos]
 
     def get_corridor_coordinates(self, edge):
-        assert  Behaviour.TYPES["goto"] == self.graph.edges[edge]["behaviour"], "Corridors can be only created to" \
-                                                                             " 'goto' behaviur edge type"
+        if not (Behaviour.TYPES["goto"] == self.graph.edges[edge]["behaviour"]):
+            raise GraphError("Corridors can be only created to 'goto' behaviur edge type")
+
         corridor_path = self.get_corridor_path(edge)
         line = LineString(corridor_path)
         corridor = line.buffer(corridor_width / 2, cap_style=3, join_style=2)
