@@ -2,6 +2,17 @@ import copy
 import networkx as nx
 import graph_creator as gc
 import numpy as np
+import time
+
+
+class DispatcherError(Exception):
+    """Base class for exceptions in this module."""
+    pass
+
+
+class TimeoutPlanning(DispatcherError):
+    """Planning timeout passed."""
+    pass
 
 
 class Behaviour:
@@ -943,6 +954,7 @@ class Dispatcher:
         Przypisanie zadan do pozostalych robotow z uwzglednieniem pierwszenstwa przydzialu zadan do robotow
         blokujacych POI.
         """
+        init_time = time.time()
         while True:
 
             free_robots_id = [robot.id for robot in self.robots_plan.get_free_robots()]
@@ -976,6 +988,10 @@ class Dispatcher:
                     # na parkingach raczej powinny być roboty wykonujące zadania, które nie mogą podjechać do stanowiska
                     self.send_free_robots_to_parking(blocking_robots_id)
                 break
+
+            current_time = time.time()
+            if (current_time-init_time) > 5:
+                raise TimeoutPlanning("Set other tasks loop is too long.")
 
     def set_task_edge(self, robot_id):
         """
