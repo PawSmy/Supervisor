@@ -222,9 +222,10 @@ class TasksManager:
         """
         max_priority_value = 0
         all_tasks = copy.deepcopy(tasks)
-        for task in all_tasks:
+        for i, task in enumerate(all_tasks):
             max_priority_value = task[Task.PARAM["WEIGHT"]] \
                 if task[Task.PARAM["WEIGHT"]] > max_priority_value else max_priority_value
+            task["index"] = i + 1
 
         # odwrocenie wynika pozniej z funkcji sortujacej, zadanie o najwyzszym priorytecie powinno miec
         # najnizsza wartosc liczbowa
@@ -233,7 +234,7 @@ class TasksManager:
 
         # sortowanie zadan po priorytetach i czasie zgłoszenia
         tasks_id = [data[Task.PARAM["ID"]] for data in sorted(all_tasks, key=lambda
-                    task_data:(task_data[Task.PARAM["WEIGHT"]], task_data[Task.PARAM["START_TIME"]]), reverse=False)]
+                    task_data:(task_data[Task.PARAM["WEIGHT"]], task_data["index"]), reverse=False)]
 
         self.tasks = []
         for i in tasks_id:
