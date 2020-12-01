@@ -100,8 +100,8 @@ class Task:
     def __init__(self, task_data):
         """
         Attributes:
-            task_data ([{"id": int, "behaviours": [Behaviour, Behaviour, ...],
-                  "robotId": int, "timeAdded": time, "PRIORITY": Task.PRIORITY["..."]}]): zadanie dla robota
+            task_data ({"id": int, "behaviours": [Behaviour, Behaviour, ...],
+                  "robotId": int, "timeAdded": time, "PRIORITY": Task.PRIORITY["..."]}): zadanie dla robota
         """
         self.id = task_data[self.PARAM["ID"]]
         self.robot_id = task_data[self.PARAM["ROBOT_ID"]]
@@ -891,11 +891,33 @@ class Dispatcher:
         Przypisanie zadan do robotow, ktore aktualnie pracuja i usuniecie ich z listy zadan do przeanalizowania.
         """
         tasks_id_to_remove = []
+        # przypisanie zadan z POI do ktorych aktualnie jedzie robot lub w ktorych wykonuje akcje
         for unanalyzed_task in self.unanalyzed_tasks_handler.tasks:
+            task_poi_goal = unanalyzed_task.get_poi_goal()
+            task_started = unanalyzed_task.check_if_task_started()
             for robot in self.robots_plan.get_free_robots():
-                if robot.id == unanalyzed_task.robot_id and unanalyzed_task.check_if_task_started():
+                robot_poi = self.planning_graph.get_poi(robot.edge)
+                if (robot.id == unanalyzed_task.robot_id and task_started)\
+                        and (robot_poi == task_poi_goal or robot_poi is None):
                     self.robots_plan.set_task(robot.id, unanalyzed_task)
                     self.set_task_edge(robot.id)
+                    tasks_id_to_remove.append(unanalyzed_task.id)
+        self.unanalyzed_tasks_handler.remove_tasks_by_id(tasks_id_to_remove)
+
+        # przypisanie pozostalych zadan rowniez wykonywanych przez agv bedace w POI i majace jechac do innego
+        # jesli kolejne POI docelowe ma wolna przestrzen do obslugi to robot wysylany jest do tego POI
+        free_slots_in_poi = self.get_free_slots_in_pois()
+        tasks_id_to_remove = []
+        for unanalyzed_task in self.unanalyzed_tasks_handler.tasks:
+            task_poi_goal = unanalyzed_task.get_poi_goal()
+            task_started = unanalyzed_task.check_if_task_started()
+            for robot in self.robots_plan.get_free_robots():
+                robot_poi = self.planning_graph.get_poi(robot.edge)
+                if robot.id == unanalyzed_task.robot_id and task_started and robot_poi != task_poi_goal:
+                    self.robots_plan.set_task(robot.id, unanalyzed_task)
+                    if free_slots_in_poi[task_poi_goal] > 0 and not self.check_if_goal_is_blocked(task_poi_goal):
+                        free_slots_in_poi[task_poi_goal] = free_slots_in_poi[task_poi_goal] - 1
+                        self.set_task_edge(robot.id)
                     tasks_id_to_remove.append(unanalyzed_task.id)
 
         self.unanalyzed_tasks_handler.remove_tasks_by_id(tasks_id_to_remove)
@@ -924,7 +946,7 @@ class Dispatcher:
         while True:
 
             free_robots_id = [robot.id for robot in self.robots_plan.get_free_robots()]
-            blocking_robots_id = self.get_robots_blocking_poi()
+            blocking_robots_id = self.get_robots_id_blocking_poi()
 
             n_free_robots = len(free_robots_id)
             n_blocking_robots = len(blocking_robots_id)
@@ -1012,7 +1034,7 @@ class Dispatcher:
                     self.robots_plan.set_end_beh_edge(robot_id, False)
                 self.robots_plan.set_next_edge(robot_id, next_edge)
 
-    def get_robots_blocking_poi(self):
+    def get_robots_id_blocking_poi(self):
         """
         Zwraca liste robotow, ktore dla aktualnego przydzialu zadan sa zablokowane przez roboty bez zadan.
 
@@ -1021,7 +1043,7 @@ class Dispatcher:
         """
         temp_blocked_pois = self.pois.get_raw_pois_list()
         for robot in self.robots_plan.get_free_robots():
-            poi_id = self.planning_graph.get_poi(robot.edge)
+            poi_id = robot.task.get_poi_goal() if robot.task is not None else None
             if poi_id is not None:
                 if self.pois.check_if_queue(poi_id):
                     if temp_blocked_pois[poi_id] is None:
@@ -1037,10 +1059,19 @@ class Dispatcher:
         # zwracana jest lista robotów, które blokują POI do których aktualnie jadą roboty
         return blocking_robots
 
+    def check_if_goal_is_blocked(self, goal_id):
+        # robot aktualnie nie ma przydzielonego zadania i znajduje sie w POI
+        for robot_plan in self.robots_plan.robots.values():
+            poi_id = self.planning_graph.get_poi(robot_plan.edge)
+            if robot_plan.task is None and poi_id is not None and poi_id == goal_id:
+                return True
+        return False
+
     def get_robots_using_pois(self):
         """
         Zwraca liczbe robotow, ktore aktualnie uzywaja danego POI. Przez uzywanie POI rozumie sie
-        dojazd do POI, dokowanie, obsluge w POI lub oddokowanie.
+        dojazd do POI, dokowanie, obsluge w POI lub oddokowanie. Jesli przydzielona krawedz przejscia dotyczy uzycia
+        POI to rowniez jest uwzgledniana.
 
         Returns:
             robotsToPoi ({poiId: int, ...}): Slownik z liczba robotow dla ktorego kluczem jest ID POI z bazy
@@ -1051,10 +1082,24 @@ class Dispatcher:
             robots_to_poi[i] = 0
         all_robots = self.robots_plan.robots.values()
         for robot in all_robots:
-            goal_id = self.planning_graph.get_poi(robot.edge)
+            goal_id = robot.get_current_destination_goal()
             if goal_id is not None:
                 robots_to_poi[goal_id] = robots_to_poi[goal_id] + 1
         return robots_to_poi
+
+    def get_free_slots_in_pois(self):
+        """
+            Funkcja zwraca liste dostepnych slotow dla kazdego z POI.
+        Returns:
+             ({poi_id: wolne_sloty, ...}) : liczba wolnych slotow dla kazdego poi.
+        """
+        robots_using_poi = self.get_robots_using_pois()
+        max_robots_in_poi = self.planning_graph.get_max_allowed_robots_using_pois(self.pois.get_pois_type())
+        free_slots_in_poi = {}
+        for poi_id in robots_using_poi:
+            diff = max_robots_in_poi[poi_id] - robots_using_poi[poi_id]
+            free_slots_in_poi[poi_id] = 0 if diff < 0 else diff
+        return free_slots_in_poi
 
     def get_free_task_to_assign(self, robots_numbers):
         """
@@ -1071,12 +1116,8 @@ class Dispatcher:
                 zadania w systemie, ktorych przypisanie powoduje spelnienie warunku, ze dla danego POI liczba
                 przypisanych robotow jest mniejsza od maksymalnej liczby obslugiwanej w danym POI.
         """
-        robots_using_poi = self.get_robots_using_pois()
-        max_robots_in_poi = self.planning_graph.get_max_allowed_robots_using_pois(self.pois.get_pois_type())
-        free_slots_in_poi = {}
-        for poi_id in robots_using_poi:
-            diff = max_robots_in_poi[poi_id] - robots_using_poi[poi_id]
-            free_slots_in_poi[poi_id] = 0 if diff < 0 else diff
+
+        free_slots_in_poi = self.get_free_slots_in_pois()
         # Lista zadań, które nie są przypisane do robotów
         free_tasks = []
         all_free_tasks = self.unanalyzed_tasks_handler.get_all_unasigned_unstarted_tasks()
