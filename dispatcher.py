@@ -15,6 +15,14 @@ class TimeoutPlanning(DispatcherError):
     pass
 
 
+class WrongData(DispatcherError):
+    """Wrong data"""
+
+
+class WrongBehaviourInputData(WrongData):
+    """Wrong behaviour input data"""
+
+
 class Behaviour:
     """
     Klasa zawierajaca informacje o pojedynczym zachowaniu dla robota
@@ -30,19 +38,19 @@ class Behaviour:
         "BEH_POI": "to"  # nazwa pola, ktore odnosi sie do celu (POI)
     }
     TYPES = {  # slownik wartosci zachowan dla robota, wartoscia jest stala nazwa dla danego typu zachowania
-        "goto": 1,
-        "dock": 2,
-        "wait": 3,
-        "undock": 4
+        "goto": "1",
+        "dock": "2",
+        "wait": "3",
+        "undock": "4"
     }
 
     def __init__(self, behaviour_data):
         """
         Parameters:
             behaviour_data (dict): slownik z parametrami zachowania
-                dict {"id" string: , "parameters": {"id": string,  "parameters": {"name": Behaviour.TYPES[nazwa_typu],
-                "to": "id_poi"})
+                dict {"id" string: , "parameters": {"name": Behaviour.TYPES[nazwa_typu], "to": "id_poi"})
         """
+        self.validate_data(behaviour_data)
         self.id = behaviour_data[self.PARAM["ID"]]
         self.parameters = behaviour_data[self.PARAM["BEH_PARAM"]]
 
@@ -69,6 +77,43 @@ class Behaviour:
             return self.parameters[self.PARAM["BEH_POI"]]
         else:
             return None
+
+    def validate_data(self, behaviour_data):
+        beh_type = type(behaviour_data)
+        if beh_type is not dict:
+            raise WrongBehaviourInputData("Behaviour should be dict type but {} was given.".format(beh_type))
+        base_beh_info_keys = list(behaviour_data.keys())
+        if self.PARAM["ID"] not in base_beh_info_keys:
+            raise WrongBehaviourInputData("Behaviour param '{}' name doesn't exist.".format(self.PARAM["ID"]))
+        if self.PARAM["BEH_PARAM"] not in base_beh_info_keys:
+            raise WrongBehaviourInputData("Behaviour param '{}' name doesn't exist.".format(self.PARAM["BEH_PARAM"]))
+
+        beh_id_type = type(behaviour_data[self.PARAM["ID"]])
+        if beh_id_type is not str:
+            raise WrongBehaviourInputData("Behaviour ID should be string but '{}' was given".format(beh_id_type))
+        beh_param_type = type(behaviour_data[self.PARAM["BEH_PARAM"]])
+        if beh_param_type is not dict:
+            raise WrongBehaviourInputData("Behaviour parameters should be dict but '{}' "
+                                          "was given".format(beh_param_type))
+
+        param_keys = list(behaviour_data[self.PARAM["BEH_PARAM"]].keys())
+        if self.PARAM["TYPE"] not in param_keys:
+            raise WrongBehaviourInputData("In behaviours parameters '{}' name doesn't "
+                                          "exist.".format(self.PARAM["TYPE"]))
+        beh_name = behaviour_data[self.PARAM["BEH_PARAM"]][self.PARAM["TYPE"]]
+        if type(beh_name) is not str:
+            raise WrongBehaviourInputData("Behaviour '{}' should be str.".format(type(beh_name)))
+        if beh_name not in self.TYPES.values():
+            raise WrongBehaviourInputData("Behaviour '{}' doesn't exist.".format(beh_name))
+
+        if beh_name == self.TYPES["goto"]:
+            if self.PARAM["BEH_POI"] not in param_keys:
+                raise WrongBehaviourInputData("Missing '{}' name for {} behaviour.".format(self.PARAM["BEH_POI"],
+                                                                                           self.TYPES["goto"]))
+            beh_type = type(behaviour_data[self.PARAM["BEH_PARAM"]][self.PARAM["BEH_POI"]])
+            if beh_type is not str:
+                raise WrongBehaviourInputData("Behaviour goto poi id should be a string "
+                                              "but {} was given.".format(beh_type))
 
     def print_info(self):
         """
@@ -339,24 +384,31 @@ class RobotsPlanManager:
         robots ({"id": Robot, "id": Robot, ...}): slownik z lista robotow do ktorych beda przypisywane zadania
 
     """
-    def __init__(self, robots):
+    def __init__(self, robots, base_poi_edges):
         """
         Parameters:
              robots ([{"id": string, "edge": (int,int), "planningOn": bool, "isFree": bool}, ... ]): przekazana
                 lista robotow do planowania zadan
+             base_poi_edges ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
+                przypisac robota, jesli jest on w POI
         """
         self.robots = {}
-        self.set_robots(robots)
+        self.set_robots(robots, base_poi_edges)
 
-    def set_robots(self, robots):
+    def set_robots(self, robots, base_poi_edges):
         """
         Parameters:
              robots ([{"id": string, "edge": (int,int), "planningOn": bool, "isFree": bool}, ... ]): przekazana
                 lista robotow do planowania zadan
+            base_poi_edges ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
+                przypisac robota, jesli jest on w POI
         """
         for data in robots:
             robot = Robot(data)
             if robot.is_planning_on():
+                if robot.edge is not tuple:
+                    # zamiast krawedzi jest POI
+                    robot.edge = base_poi_edges[robot.edge]
                 self.robots[robot.id] = robot
 
     def get_robot_by_id(self, robot_id):
@@ -527,6 +579,17 @@ class PoisManager:
             pois_list[poi_id] = {"type": self.pois[poi_id]["type"]}
         return pois_list
 
+    def get_pois_id(self):
+        """
+        Zwraca liste z ID wszystkich POI polaczonych z grafem
+        Returns:
+             (list): lista z id POI
+        """
+        poi_list = []
+        for poi_id in self.pois.keys():
+            poi_list.append(poi_id)
+        return poi_list
+
 
 class PlanningGraph:
     """
@@ -540,7 +603,7 @@ class PlanningGraph:
         Parameters:
             graph (GraphCreator):
         """
-        self.graph = copy.deepcopy(graph.get_graph())
+        self.graph = copy.deepcopy(graph.graph)
         self.extend_graph()
 
     def extend_graph(self):
@@ -765,6 +828,29 @@ class PlanningGraph:
         self.block_other_pois(start_node, end_node)
         return nx.shortest_path(self.graph, source=start_node, target=end_node, weight='planWeight')
 
+    def get_base_pois_edges(self, pois_id):
+        """
+        Parameters:
+            pois_id ({robot_id: poi_id, ...}): lista robotow z POI aktualnego celu
+
+        Returns:
+            ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
+             przypisac robota, jesli jest on w POI
+        """
+        base_poi_edges = {}
+        for poi_id in pois_id:
+            poi_nodes = [node[0] for node in self.graph.nodes(data=True) if node[1]["poiId"] == poi_id]
+            if len(poi_nodes) == 1:
+                # poi jest typu parking lub queue
+                edges = [edge for edge in self.graph.edges(data=True) if edge[1] in poi_nodes][0]
+                base_poi_edges[poi_id] = (edges[0], edges[1])
+            elif len(poi_nodes) > 0:
+                # poi z i bez dokowania
+                edges = [edge for edge in self.graph.edges(data=True) if
+                         edge[0] == poi_nodes[-2] and edge[1] == poi_nodes[-1]]
+                base_poi_edges[poi_id] = (edges[0], edges[1])
+        return base_poi_edges
+
 
 class Dispatcher:
     """
@@ -798,7 +884,8 @@ class Dispatcher:
         self.planning_graph = PlanningGraph(graph_data)
         self.pois = PoisManager(graph_data)
 
-        self.robots_plan = RobotsPlanManager(robots)
+        base_poi_edges = self.planning_graph.get_base_pois_edges(self.pois.get_pois_id())
+        self.robots_plan = RobotsPlanManager(robots, base_poi_edges)
         self.init_robots_plan(robots)
 
         self.unanalyzed_tasks_handler = None
@@ -882,7 +969,8 @@ class Dispatcher:
             robots ([{"id": string, "edge": (int, int), "planningOn": bool, "isFree": bool, "timeRemaining": float}
                 ,...]): lista z danymi o robocie
         """
-        self.robots_plan = RobotsPlanManager(robots)
+        base_poi_edges = self.planning_graph.get_base_pois_edges(self.pois.get_pois_id())
+        self.robots_plan = RobotsPlanManager(robots, base_poi_edges)
 
     def set_tasks(self, tasks):
         """
