@@ -572,6 +572,7 @@ class SupervisorGraphCreator(DataConverter):
         self.assign_poi_to_waiting_edges()
         self.set_default_time_weight()
         self.set_max_robots()
+        self.set_corridor()
 
     def set_groups(self, combined_edges):
         poi_parking_node_ids = [i for i in self.source_nodes if self.source_nodes[i]["type"]["nodeSection"] in
@@ -1125,6 +1126,12 @@ class SupervisorGraphCreator(DataConverter):
         final_corridor_coordinates = [(x[i], y[i]) for i in range(len(x))]
         # finalCorridorCoordinates = [(x,y),(x2,y2),...]
         return final_corridor_coordinates
+
+    def set_corridor(self):
+        print("set corridor")
+        for edge in self.graph.edges(data=True):
+            if edge[2]["behaviour"] == Behaviour.TYPES["goto"]:
+                self.graph.edges[edge[0],edge[1]]["corridor"] = self.get_corridor_coordinates([edge[0],edge[1]])
 
     def print_corridor(self, edge):
         source_id = [data[2]["sourceNodes"] for data in self.graph.edges(data=True) if data[0] == edge[0]
