@@ -550,7 +550,7 @@ def _get_intersection_step_node_pos(in_pos, out_pos, is_narrow, is_in_edge):
 
 
 class SupervisorGraphCreator(DataConverter):
-    def __init__(self, source_nodes, source_edges):
+    def __init__(self, source_nodes, source_edges, pois_raw_data):
         # odczyt danych, wywołanie odpowiednich funkcji i utworzenie właściwego grafu
         super().__init__(source_nodes, source_edges)
         self.graph = nx.DiGraph()
@@ -559,9 +559,9 @@ class SupervisorGraphCreator(DataConverter):
         self.edge_id = 1
         self.group_id_switcher = {}  # kluczem jest id wezla grafu podstawowego
         self.convert_data_run()
-        self.create_graph()
+        self.create_graph(pois_raw_data)
 
-    def create_graph(self):
+    def create_graph(self, pois_raw_data):
         combined_edges = self.set_groups(self.reduced_edges)
         self.add_poi_docking_nodes()
         self.add_poi_no_docking()
@@ -573,6 +573,7 @@ class SupervisorGraphCreator(DataConverter):
         self.set_default_time_weight()
         self.set_max_robots()
         self.set_corridor()
+        self.set_robots_position(pois_raw_data)
 
     def set_groups(self, combined_edges):
         poi_parking_node_ids = [i for i in self.source_nodes if self.source_nodes[i]["type"]["nodeSection"] in
@@ -1128,10 +1129,9 @@ class SupervisorGraphCreator(DataConverter):
         return final_corridor_coordinates
 
     def set_corridor(self):
-        print("set corridor")
         for edge in self.graph.edges(data=True):
             if edge[2]["behaviour"] == Behaviour.TYPES["goto"]:
-                self.graph.edges[edge[0],edge[1]]["corridor"] = self.get_corridor_coordinates([edge[0],edge[1]])
+                self.graph.edges[edge[0], edge[1]]["corridor"] = self.get_corridor_coordinates([edge[0], edge[1]])
 
     def print_corridor(self, edge):
         source_id = [data[2]["sourceNodes"] for data in self.graph.edges(data=True) if data[0] == edge[0]
@@ -1159,6 +1159,62 @@ class SupervisorGraphCreator(DataConverter):
 
     def get_planning_graph(self):
         pass
+
+    def set_robots_position(self, pois_raw_data):
+        # in nodes
+        in_nodes = [node for node in self.graph.nodes(data=True) if
+                    node[1]["nodeType"] == new_node_type["intersection_in"]]
+        in_nodes_id = [node[0] for node in in_nodes]
+        for i in in_nodes_id:
+            in_edge = [edge for edge in self.graph.edges(data=True) if edge[1] == i
+                       and self.graph.nodes[edge[0]]["sourceNode"] != self.graph.nodes[edge[1]]["sourceNode"]][0]
+            start_pos = self.source_nodes[in_edge[2]["sourceNodes"][-2]]["pos"]
+            end_pos = self.source_nodes[in_edge[2]["sourceNodes"][-1]]["pos"]
+            node_pos = self.graph.nodes[i]["pos"]
+            self.graph.nodes[i]["pose"] = self.get_ros_pose_msg(start_pos, end_pos, node_pos)
+
+        # out nodes
+        out_nodes = [node for node in self.graph.nodes(data=True)
+                     if node[1]["nodeType"] == new_node_type["intersection_out"]
+                     or self.source_nodes[node[1]["sourceNode"]]["type"] in [base_node_type["parking"],
+                                                                             base_node_type["queue"],
+                                                                             base_node_type["waiting"],
+                                                                             base_node_type["departure"]]]
+
+        out_nodes_id = [node[0] for node in out_nodes]
+        for i in out_nodes_id:
+            out_edge = [edge for edge in self.graph.edges(data=True) if edge[0] == i
+                        and self.graph.nodes[edge[0]]["sourceNode"] != self.graph.nodes[edge[1]]["sourceNode"]][0]
+            node_pos = self.graph.nodes[i]["pos"]
+            start_pos = self.source_nodes[out_edge[2]["sourceNodes"][0]]["pos"]
+            end_pos = self.source_nodes[out_edge[2]["sourceNodes"][1]]["pos"]
+            self.graph.nodes[i]["pose"] = self.get_ros_pose_msg(start_pos, end_pos, node_pos)
+
+        for node in self.graph.nodes(data=True):
+            if "pose" not in node[1] and node[1]["poiId"] != 0 :
+                poi_pose = [poi["pose"] for poi in pois_raw_data if poi["id"] == node[1]["poiId"]][0]
+                self.graph.nodes[node[0]]["pose"] = poi_pose
+
+    def get_ros_pose_msg(self, start_point, end_point, node_pos):
+        robot_pose = {"position": {}, "orientation": {}}
+
+        robot_pose["position"]["x"] = node_pos[0]
+        robot_pose["position"]["y"] = node_pos[1]
+        robot_pose["position"]["z"] = 0
+
+        robot_pose["orientation"]["x"] = 0.0
+        robot_pose["orientation"]["y"] = 0.0
+        robot_pose["orientation"]["z"] = 0.0
+        robot_pose["orientation"]["w"] = 0.0
+
+        last_segment_x = end_point[0] - start_point[0]
+        last_segment_y = end_point[1] - start_point[1]
+
+        finish_angle = math.atan2(last_segment_y, last_segment_x)
+        robot_pose["orientation"]["z"] = math.sin(finish_angle / 2)
+        robot_pose["orientation"]["w"] = math.cos(finish_angle / 2)
+
+        return robot_pose
 
     def print_graph(self, plot_size=(45, 45)):
         plt.figure(figsize=plot_size)
