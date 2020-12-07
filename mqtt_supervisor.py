@@ -2,7 +2,7 @@ import json
 import requests
 import threading
 import paho.mqtt.client as mqtt
-import graphProcessing
+import graphProcessing as gp
 
 #global variables
 robotsDict = {}
@@ -14,14 +14,15 @@ DEBUG = 1
 class apiEndpoint:
   robotsVerifyCheckRate = 15.0
   apiUpdateRate = 2.0
+  backServer = "http://helike-ra-back-sosnus-develop.azurewebsites.net/"
   endpoints = {
-    "login":"http://tebe.westeurope.cloudapp.azure.com:3333/users/login",
-    "updateRobo":"http://tebe.westeurope.cloudapp.azure.com:3333/robots/update",
-    "getRobotsID":"http://tebe.westeurope.cloudapp.azure.com:3333/robots/allById",
-    "getRobotsByID":"http://tebe.westeurope.cloudapp.azure.com:3333/robots/",
+    "login":"users/login",
+    "updateRobo":"robots/update",
+    "getRobotsID":"robots/allById",
+    "getRobotsByID":"robots/",
     "checkRobotsByID":None,
-    "getGraph":None,
-    "getGraphTimestamp":None
+    "getGraphs":"graphs/all",
+    "getGraph":"graphs/"
   }
 
   def __init__(self,login,password):
@@ -31,7 +32,7 @@ class apiEndpoint:
     self._raptorsAPI.auth = (login,password)
 
     # login check
-    self.apiLoginRESP = self._raptorsAPI.post(self.endpoints["login"], json = {"email":login,"password":password})
+    self.apiLoginRESP = self._raptorsAPI.post(self.backServer + self.endpoints["login"], json = {"email":login,"password":password})
 
   def __del__(self):
     self._raptorsAPI.close()
@@ -40,7 +41,7 @@ class apiEndpoint:
     return (self.apiLoginRESP.status_code == 200)
 
   def updateRoboData(self, jsonData):
-    return self._raptorsAPI.post(self.endpoints["updateRobo"], json = jsonData)
+    return self._raptorsAPI.post(self.backServer + self.endpoints["updateRobo"], json = jsonData)
 
   def apiUpdateLoop(self):
     for r in robotsDict.values():
@@ -57,9 +58,9 @@ class apiEndpoint:
     threading.Timer(self.apiUpdateRate,self.apiUpdateLoop).start()
 
   def getAllRobotsID(self):
-    return self._raptorsAPI.get(self.endpoints["getRobotsID"])
+    return self._raptorsAPI.get(self.backServer + self.endpoints["getRobotsID"])
   def getSingleRoboByID(self,roboID):
-    return self._raptorsAPI.get(self.endpoints["getRobotsByID"]+str(roboID))
+    return self._raptorsAPI.get(self.backServer + self.endpoints["getRobotsByID"]+str(roboID))
 
   def verifyRobots(self):
     if len(robotsVerifyQueue)>1:
@@ -82,18 +83,18 @@ class apiEndpoint:
       self.verifyRobots()
     threading.Timer(self.robotsVerifyCheckRate,self.verifyRobotsLoop).start()
 
-  def getGraphTimestamp(self):
-    return self._raptorsAPI.get(self.endpoints["getGraphTimestamp"])
+  def getOneGraph(self,gID):
+    return self._raptorsAPI.get(self.endpoints["getGraph"]+str(gID))
 
-  def getGraphData(self):
-    return self._raptorsAPI.get(self.endpoints["getGraph"])
+  def getAllGraphs(self):
+    return self._raptorsAPI.get(self.endpoints["getGraphs"])
 
 # =====================================================================================================================
   # dla nowego endpointu
   def checkByRoboIdList(self,IDlist):
     # IDlist = [id1,id2,id3]
     # nie ma jeszcze endopinta dodanego do dict tutaj (bo nie wiem jaki ma adres, jak go zrobimy trzeba bedzie dopisac)
-    return self._raptorsAPI.get(self.endpoints["checkRobotsByID"], json = IDlist)
+    return self._raptorsAPI.get(self.backServer + self.endpoints["checkRobotsByID"], json = IDlist)
 
   def verifyRoboQueue(self):
     # wersja dla odpowiedzi w formacie: {id1:0/1,id2:0/1} ~ chyba najlepsza wersja bo i tak kolejka to dict.
@@ -224,7 +225,7 @@ if(rAPI.connectionCheck):
   print ("API connection success")
 
   #create graph class
-  gAPI = graphApi()
+  gAPI = gp.graphApi()
 
   #connect mqtt
   rMQTT = mqttHandler("localhost",1883,60)
