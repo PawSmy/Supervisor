@@ -305,7 +305,7 @@ class Task:
                                                           self.STATUS_LIST["TO_DO"]))
 
         max_n_beh = len(task_data[self.PARAM["BEHAVIOURS"]]) - 1
-        if (task_data[self.PARAM["CURRENT_BEH_ID"]] < -1) and (task_data[self.PARAM["CURRENT_BEH_ID"]] > max_n_beh):
+        if (task_data[self.PARAM["CURRENT_BEH_ID"]] < -1) or (task_data[self.PARAM["CURRENT_BEH_ID"]] > max_n_beh):
             raise WrongTaskInputData("Task id: {}. Param '{}' should be int in range [-1,{}] but was '{}'"
                                      "".format(task_id, self.PARAM["CURRENT_BEH_ID"], max_n_beh,
                                                task_data[self.PARAM["CURRENT_BEH_ID"]]))
