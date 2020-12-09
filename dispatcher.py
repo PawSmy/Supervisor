@@ -1,9 +1,10 @@
+# -*- coding: utf-8 -*-
 import copy
 import networkx as nx
 import graph_creator as gc
 import numpy as np
 import time
-
+from datetime import datetime
 
 class DispatcherError(Exception):
     """Base class for exceptions in this module."""
@@ -21,6 +22,10 @@ class WrongData(DispatcherError):
 
 class WrongBehaviourInputData(WrongData):
     """Wrong behaviour input data"""
+
+
+class WrongTaskInputData(WrongData):
+    """Wrong task input data"""
 
 
 class Behaviour:
@@ -129,9 +134,9 @@ class Task:
     Attributes:
         id (string): id zadania
         robot_id (string): id robota
-        start_time (time_string): czas dodania zadania do bazy
+        start_time (time_string or None): czas dodania zadania do bazy
         behaviours ([Behaviour, Behaviour, ...]): lista kolejnych zachowan dla robota
-        curr_behaviour_id (string): id aktualnie wykonywanego zachowania, jesli zadanie jest w trakcie wykonywania
+        curr_behaviour_id (int): id aktualnie wykonywanego zachowania, jesli zadanie jest w trakcie wykonywania
         status (string): nazwa statusu z listy STATUS_LIST
         weight (float): waga z jaka powinno zostac wykonane zadanie, im wyzsza tym wyzszy priorytet
     """
@@ -159,16 +164,20 @@ class Task:
             task_data ({"id": int, "behaviours": [Behaviour, Behaviour, ...],
                   "robotId": int, "timeAdded": time, "PRIORITY": Task.PRIORITY["..."]}): zadanie dla robota
         """
+        self.validate_input(task_data)
         self.id = task_data[self.PARAM["ID"]]
         self.robot_id = task_data[self.PARAM["ROBOT_ID"]]
         self.start_time = task_data[self.PARAM["START_TIME"]]
-        self.behaviours = [Behaviour(raw_behaviour) for raw_behaviour in task_data[self.PARAM["BEHAVIOURS"]]]
         self.status = task_data[self.PARAM["STATUS"]]
         self.weight = task_data[self.PARAM["WEIGHT"]]
-        # dla statusu done odnosi
-        # sie do kolejnego zachowania
-        curr_beh_id = task_data[self.PARAM["CURRENT_BEH_ID"]]
+        curr_beh_id = task_data[self.PARAM["CURRENT_BEH_ID"]] # dla statusu done odnosi sie do kolejnego zachowania
         self.curr_behaviour_id = 0 if curr_beh_id == -1 else curr_beh_id
+        # TODO uwzglednic -1 podczas przydzielania zadan. Jesli zadanie jest todo i ma -1 to wtedy curr_beh_id jest 0
+        # jesli zadanie ma inny status to wartosc tyczy sie aktualnie wykonywanego zachowania
+        try:
+            self.behaviours = [Behaviour(raw_behaviour) for raw_behaviour in task_data[self.PARAM["BEHAVIOURS"]]]
+        except WrongBehaviourInputData as error:
+            raise WrongTaskInputData("Task id: {}. Behaviour error. {}".format(task_data[self.PARAM["ID"]], error))
 
     def get_poi_goal(self):
         """
@@ -224,6 +233,90 @@ class Task:
             (bool): wartosc True jesli zadanie zostalo rozpoczete w przeciwnym wypadku False
         """
         return self.status != self.STATUS_LIST["TO_DO"]
+
+    def validate_input(self, task_data):
+        if type(task_data) != dict:
+            raise WrongTaskInputData("Wrong task input data type.")
+        task_keys = task_data.keys()
+        # sprawdzenie czy zadanie zawiera wszystkie niezbedne parametry
+        if self.PARAM["ID"] not in task_keys:
+            raise WrongTaskInputData("Task param '{}' doesn't exist.".format(self.PARAM["ID"]))
+        task_id = task_data[self.PARAM["ID"]]
+        if self.PARAM["ROBOT_ID"] not in task_keys:
+            raise WrongTaskInputData("Task id: {}. Param '{}' doesn't exist.".format(task_id, self.PARAM["ROBOT_ID"]))
+        if self.PARAM["START_TIME"] not in task_keys:
+            raise WrongTaskInputData("Task id: {}. Param '{}' doesn't exist.".format(task_id, self.PARAM["START_TIME"]))
+        if self.PARAM["BEHAVIOURS"] not in task_keys:
+            raise WrongTaskInputData("Task id: {}. Param '{}' doesn't exist.".format(task_id, self.PARAM["BEHAVIOURS"]))
+        if self.PARAM["CURRENT_BEH_ID"] not in task_keys:
+            raise WrongTaskInputData("Task id: {}. Param '{}' doesn't exist.".format(task_id,
+                                                                                     self.PARAM["CURRENT_BEH_ID"]))
+        if self.PARAM["STATUS"] not in task_keys:
+            raise WrongTaskInputData("Task id: {}. Param '{}' doesn't exist.".format(task_id, self.PARAM["STATUS"]))
+        if self.PARAM["WEIGHT"] not in task_keys:
+            raise WrongTaskInputData("Task id: {}. Param '{}' doesn't exist.".format(task_id, self.PARAM["WEIGHT"]))
+
+        # sprawdzenie czy parametry sa wlasciwego typu
+        task_id_type = type(task_id)
+        if task_id_type is not str:
+            raise WrongTaskInputData("Task '{}' should be str type but {} was given.".format(self.PARAM["ID"],
+                                                                                             task_id_type))
+
+        robot_id = task_data[self.PARAM["ROBOT_ID"]]
+        task_robot_type = type(robot_id)
+        if task_robot_type != str and robot_id is not None:
+            raise WrongTaskInputData("Task id: {}. Param '{}' should be str or None type but {} "
+                                     "was given.".format(task_id, self.PARAM["ROBOT_ID"], task_robot_type))
+
+        task_time = task_data[self.PARAM["START_TIME"]]
+        task_time_type = type(task_time)
+        if task_time_type != str and task_time is not None:
+            raise WrongTaskInputData("Task id: {}. Param '{}' should be str or None type but {} "
+                                     "was given.".format(task_id, self.PARAM["START_TIME"], task_time_type))
+
+        task_beh_index_type = type(task_data[self.PARAM["CURRENT_BEH_ID"]])
+        if task_beh_index_type != int:
+            raise WrongTaskInputData("Task id: {}. Param '{}' should be int type but {} "
+                                     "was given.".format(task_id, self.PARAM["CURRENT_BEH_ID"], task_beh_index_type))
+
+        task_status = task_data[self.PARAM["STATUS"]]
+        task_status_type = type(task_data[self.PARAM["STATUS"]])
+        if task_status_type != str and task_status is not None:
+            raise WrongTaskInputData("Task id: {}. Param '{}' should be str or None type but {} "
+                                     "was given.".format(task_id, self.PARAM["STATUS"], task_status_type))
+
+        weight_id_type = type(task_data[self.PARAM["WEIGHT"]])
+        if weight_id_type not in [int, float]:
+            raise WrongTaskInputData("Task id: {}. Param '{}' should be int, float, None type but {} was given."
+                                     .format(task_id, self.PARAM["WEIGHT"], weight_id_type))
+
+        behaviour_type = type(task_data[self.PARAM["BEHAVIOURS"]])
+        if behaviour_type != list:
+            raise WrongTaskInputData("Task id: {}. Param '{}' should be list type but {} was given."
+                                     .format(task_id, self.PARAM["BEHAVIOURS"], behaviour_type))
+
+        # sprawdzenie poprawnosci danych
+        if task_status not in self.STATUS_LIST.values():
+            raise WrongTaskInputData("Task id: {}. '{}' doesn't exist. {} "
+                                     "was given.".format(task_id, self.PARAM["STATUS"], task_status))
+        if robot_id is None and task_data[self.PARAM["STATUS"]] != self.STATUS_LIST["TO_DO"]:
+            raise WrongTaskInputData("Task id: {}. Param '{}' should be set when task was started. Status different"
+                                     " than '{}'.".format(task_id, self.PARAM["ROBOT_ID"],
+                                                          self.STATUS_LIST["TO_DO"]))
+
+        max_n_beh = len(task_data[self.PARAM["BEHAVIOURS"]]) - 1
+        if (task_data[self.PARAM["CURRENT_BEH_ID"]] < -1) and (task_data[self.PARAM["CURRENT_BEH_ID"]] > max_n_beh):
+            raise WrongTaskInputData("Task id: {}. Param '{}' should be int in range [-1,{}] but was '{}'"
+                                     "".format(task_id, self.PARAM["CURRENT_BEH_ID"], max_n_beh,
+                                               task_data[self.PARAM["CURRENT_BEH_ID"]]))
+
+        try:
+            datetime.strptime(task_time, "%Y-%m-%d %H:%M:%S")
+        except:
+            raise WrongTaskInputData("Task id: {}. Param '{}' wrong type. Required YYYY-mm-dd HH:MM:SS".
+                                     format(task_id, self.PARAM["START_TIME"], task_time_type))
+    # TODO
+    #sprawdzenie kolejnosci zachowan w zadaniu
 
     def print_info(self):
         """
@@ -307,7 +400,7 @@ class TasksManager:
         Returns:
              (list(task)): lista zadan
         """
-        return [task for task in self.tasks if task.robot_id == 0 and not task.check_if_task_started()]
+        return [task for task in self.tasks if task.robot_id is None and not task.check_if_task_started()]
 
 
 class Robot:
@@ -406,7 +499,7 @@ class RobotsPlanManager:
         for data in robots:
             robot = Robot(data)
             if robot.is_planning_on():
-                if robot.edge is not tuple:
+                if type(robot.edge) is not tuple:
                     # zamiast krawedzi jest POI
                     robot.edge = base_poi_edges[robot.edge]
                 self.robots[robot.id] = robot
@@ -844,11 +937,11 @@ class PlanningGraph:
                 # poi jest typu parking lub queue
                 edges = [edge for edge in self.graph.edges(data=True) if edge[1] in poi_nodes][0]
                 base_poi_edges[poi_id] = (edges[0], edges[1])
-            elif len(poi_nodes) > 0:
+            elif len(poi_nodes) > 1:
                 # poi z i bez dokowania
                 edges = [edge for edge in self.graph.edges(data=True) if
                          edge[0] == poi_nodes[-2] and edge[1] == poi_nodes[-1]]
-                base_poi_edges[poi_id] = (edges[0], edges[1])
+                base_poi_edges[poi_id] = (edges[0][0], edges[0][1])
         return base_poi_edges
 
 
