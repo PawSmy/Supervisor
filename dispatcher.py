@@ -28,6 +28,10 @@ class WrongTaskInputData(WrongData):
     """Wrong task input data"""
 
 
+class WrongRobotInputData(WrongData):
+    """Wrong robot input data"""
+
+
 class Behaviour:
     """
     Klasa zawierajaca informacje o pojedynczym zachowaniu dla robota
@@ -427,20 +431,21 @@ class Robot:
 
     Attributes:
         id (string): id robota
-        edge ((int,int)): krawedz na ktorej aktualnie znajduje sie robot
+        edge ((string,string)): krawedz na ktorej aktualnie znajduje sie robot
         planning_on (bool): informuje czy robot jest w trybie planownaia
         is_free (bool): informuje czy robot aktualnie wykonuje jakies zachowanie czy nie
-        time_remaining (float): czas do ukonczenia zachowania
+        time_remaining (float/None): czas do ukonczenia zachowania
         task (Task): zadanie przypisane do robota
-        next_task_edge ((int,int)): informuje o kolejnej krawedzi przejscia ktora nalezy wyslac do robota
+        next_task_edge ((string,string)): informuje o kolejnej krawedzi przejscia ktora nalezy wyslac do robota
         end_beh_edge (bool): informuje czy zachowanie po przejsciu krawedzia zostanie ukonczone
     """
     def __init__(self, robot_data):
         """
         Parameters:
-            robot_data ({"id": int, "edge": (int, int), "planningOn": bool, "isFree": bool, "timeRemaining": float}):
-                slownik z danymi o robocie
+            robot_data ({"id": string, "edge": (string, string), "planningOn": bool, "isFree": bool,
+                         "timeRemaining": float/None}): slownik z danymi o robocie
         """
+        self.validate_input(robot_data)
         self.id = robot_data["id"]
         self.edge = robot_data["edge"]
         self.planning_on = robot_data["planningOn"]
@@ -450,17 +455,67 @@ class Robot:
         self.next_task_edge = None
         self.end_beh_edge = None
 
+        self.check_planning_status()
+
+    def validate_input(self, data):
+        """
+        Parameters:
+            data ({"id": string, "edge": (string, string), "planningOn": bool, "isFree": bool,
+                         "timeRemaining": float/None}): slownik z danymi o robocie
+        """
+        # sprawdzenie czy dane wejsciowe sa dobrego typu
+        type_data = type(data)
+        if type_data != dict:
+            raise WrongRobotInputData("Robot input data should be dict but {} was given.".format(type_data))
+
+        # sprawdzenie czy kazdy parametr istnieje
+        if "id" not in data:
+            raise WrongRobotInputData("Robot 'id' param doesn't exist.")
+        robot_id = data["id"]
+        if "edge" not in data:
+            raise WrongRobotInputData("Robot id: {}. Param 'edge' doesn't exist.".format(robot_id))
+        if "planningOn" not in data:
+            raise WrongRobotInputData("Robot id: {}. Param 'planningOn' doesn't exist.".format(robot_id))
+        if "isFree" not in data:
+            raise WrongRobotInputData("Robot id: {}. Param 'isFree' doesn't exist.".format(robot_id))
+        if "timeRemaining" not in data:
+            raise WrongRobotInputData("Robot id: {}. Param 'timeRemaining' doesn't exist.".format(robot_id))
+
+        # sprawdzenie czy kazdy parametr wejsciowy jest dobrego typu
+        type_id = type(data["id"])
+        if type_id != str:
+            raise WrongRobotInputData("Robot id: {}. Param 'id' should be str type but {} was given."
+                                      "".format(robot_id, type_id))
+        type_id = type(data["edge"])
+        if type_id != tuple and data["edge"] is not None:
+            raise WrongRobotInputData("Robot id: {}. Param 'edge' should be tuple or None type but {} was given."
+                                      "".format(robot_id, type_id))
+        type_id = type(data["planningOn"])
+        if type_id != bool:
+            raise WrongRobotInputData("Robot id: {}. Param 'planningOn' should be bool type but {} was given."
+                                      "".format(robot_id, type_id))
+        type_id = type(data["isFree"])
+        if type_id != bool:
+            raise WrongRobotInputData("Robot id: {}. Param 'isFree' should be bool type but {} was given."
+                                      .format(robot_id, type_id))
+        type_id = type(data["timeRemaining"])
+        if type_id not in [int, float]:
+            raise WrongRobotInputData("Robot id: {}. Param 'timeRemaining' should be int or float type but {} "
+                                      "was given.".format(robot_id, type_id))
+
     def get_current_node(self):
         """
         Returns:
              (int): wezel w ktorym znajduje sie robot lub znajdzie po zakonczeniu zachowania
         """
-        return self.edge[1]
+        return None if self.edge is None else self.edge[1]
 
-    def is_planning_on(self):
+    def check_planning_status(self):
         """
         TODO
             - przekonwertowac status z robota i okreslic na jego podstawie czy robot jest w trybie planowania czy nie
+            - dopisac testy po wprowadzeniu dodatkowych statusow robota na podstawie, ktorych
+                podjeta jest decyzja o planowaniu
         Returns:
             (bool): True - robot zajety, False - robot wolny
         """
@@ -478,13 +533,15 @@ class Robot:
         """
         return self.task.get_poi_goal() if self.task is not None else None
 
-    def print_info(self):
+    def get_info(self):
         """
         Wyswietla informacje o robocie.
         """
-        print("id", self.id, "edge", self.edge, "planning_on", self.planning_on, "is free", self.is_free,
-              "time remaining", self.time_remaining, "task", self.task, "next edge", self.next_task_edge,
-              "end beh", self.end_beh_edge)
+        data = "id: " + self.id + ", edge: " + str(self.edge) + ", planning_on: " + str(self.planning_on) + "\n"
+        data += "is free: " + str(self.is_free) + ", time remaining: " + str(self.time_remaining) + "\n"
+        data += "task: " + self.task.get_info + "\n"
+        data += "next edge" + str(self.next_task_edge) + ", end beh: " + self.end_beh_edge
+        return data
 
 
 class RobotsPlanManager:
@@ -516,7 +573,7 @@ class RobotsPlanManager:
         """
         for data in robots:
             robot = Robot(data)
-            if robot.is_planning_on():
+            if robot.planning_on:
                 if type(robot.edge) is not tuple:
                     # zamiast krawedzi jest POI
                     robot.edge = base_poi_edges[robot.edge]
