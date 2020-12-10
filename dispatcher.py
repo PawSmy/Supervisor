@@ -120,11 +120,11 @@ class Behaviour:
                 raise WrongBehaviourInputData("Behaviour goto poi id should be a string "
                                               "but {} was given.".format(beh_type))
 
-    def print_info(self):
+    def get_info(self):
         """
         Wyswietla informacje o zachownaiu
         """
-        print("id", self.id, "parameters", self.parameters)
+        return "id: " + str(self.id) + ", parameters: " + str(self.parameters) + "\n"
 
 
 class Task:
@@ -134,7 +134,7 @@ class Task:
     Attributes:
         id (string): id zadania
         robot_id (string): id robota
-        start_time (time_string or None): czas dodania zadania do bazy
+        start_time (time_string YYYY-mm-dd HH:MM:SS or None): czas dodania zadania do bazy
         behaviours ([Behaviour, Behaviour, ...]): lista kolejnych zachowan dla robota
         curr_behaviour_id (int): id aktualnie wykonywanego zachowania, jesli zadanie jest w trakcie wykonywania
         status (string): nazwa statusu z listy STATUS_LIST
@@ -170,9 +170,7 @@ class Task:
         self.start_time = task_data[self.PARAM["START_TIME"]]
         self.status = task_data[self.PARAM["STATUS"]]
         self.weight = task_data[self.PARAM["WEIGHT"]]
-        curr_beh_id = task_data[self.PARAM["CURRENT_BEH_ID"]] # dla statusu done odnosi sie do kolejnego zachowania
-        self.curr_behaviour_id = 0 if curr_beh_id == -1 else curr_beh_id
-        # TODO uwzglednic -1 podczas przydzielania zadan. Jesli zadanie jest todo i ma -1 to wtedy curr_beh_id jest 0
+        self.curr_behaviour_id = task_data[self.PARAM["CURRENT_BEH_ID"]]  # dla statusu done kolejne zachowania
         # jesli zadanie ma inny status to wartosc tyczy sie aktualnie wykonywanego zachowania
         try:
             self.behaviours = [Behaviour(raw_behaviour) for raw_behaviour in task_data[self.PARAM["BEHAVIOURS"]]]
@@ -193,14 +191,14 @@ class Task:
                 if behaviour.check_if_go_to():
                     goal_poi = behaviour.get_poi()
                 else:
-                    assert previous_behaviour is not None, "First behaviour should be GO TO"
-                    goal_poi = previous_behaviour.get_poi()
-                break
+                    if previous_behaviour is not None:
+                        goal_poi = previous_behaviour.get_poi()
+                        break
 
             if behaviour.check_if_go_to():
                 previous_behaviour = behaviour
 
-        return goal_poi
+        return goal_poi if goal_poi is not None else previous_behaviour.get_poi()
 
     def get_current_behaviour(self):
         """
@@ -210,20 +208,20 @@ class Task:
         Returns:
             (Behaviour): aktualnie wykonywane zachowanie w ramach zadania
         """
-        return self.behaviours[self.curr_behaviour_id]
+        return self.behaviours[0] if self.curr_behaviour_id == -1 else self.behaviours[self.curr_behaviour_id]
 
-    def get_task_first_goal(self):
-        """
-        Dla zadania zwracane jest pierwsze POI do ktorego ma dojechac robot w ramach podanego zadania.
-
-        Returns:
-            (string): id POI z bazy, jesli dla zadania nie zostanie znalezione zadne zachowanine GO TO
-                          zwracana jest wartosc None
-        """
-        for behaviour in self.behaviours:
-            if behaviour.check_if_go_to():
-                return behaviour.get_poi()
-        return None
+    # def get_task_first_goal(self):
+    #     """
+    #     Dla zadania zwracane jest pierwsze POI do ktorego ma dojechac robot w ramach podanego zadania.
+    #
+    #     Returns:
+    #         (string): id POI z bazy, jesli dla zadania nie zostanie znalezione zadne zachowanine GO TO
+    #                       zwracana jest wartosc None
+    #     """
+    #     for behaviour in self.behaviours:
+    #         if behaviour.check_if_go_to():
+    #             return behaviour.get_poi()
+    #     return None
 
     def check_if_task_started(self):
         """
@@ -316,16 +314,23 @@ class Task:
             raise WrongTaskInputData("Task id: {}. Param '{}' wrong type. Required YYYY-mm-dd HH:MM:SS".
                                      format(task_id, self.PARAM["START_TIME"], task_time_type))
     # TODO
-    #sprawdzenie kolejnosci zachowan w zadaniu
+    # sprawdzenie kolejnosci zachowan w zadaniu
+    # sprawdzenie czy pierwszym zachowaniem jest goto
+    # dla innych typow zadan odpowiedzialnych za wysylanie MSG do robota current beh index odnosi
+    # sie do wykonywalnego przez robota zachowania uwzglednianego w planie. Takie zachowania
+    # powinny być pominięte na etapie planowania. Kolejnym zachowaniem nie może być zachowanie nieuwzględniane
+    # na etapie planowania.
 
-    def print_info(self):
+    def get_info(self):
         """
         Wyswietla informacje o zadaniu.
         """
-        print("id", self.id, "robot_id", self.robot_id, "start_tme", self.start_time)
-        print("current beh id", self.curr_behaviour_id, "status", self.status, "weight", self.weight)
+        data = "id: " + str(self.id) + ", robot_id: " +  str(self.robot_id) + ",start_tme: " + str(self.start_time)+"\n"
+        data += "current beh id: " + str(self.curr_behaviour_id) + ", status: " + str(self.status) +\
+                ", weight: " + str(self.weight) + "\n"
         for behaviour in self.behaviours:
-            behaviour.print_info()
+            data += behaviour.get_info()
+        return data
 
 
 class TasksManager:
@@ -348,18 +353,27 @@ class TasksManager:
         self.tasks = []
         self.set_tasks(tasks)
 
-    def set_tasks(self, tasks):
+    def set_tasks(self, tasks_data):
         """
-        Odpowiada za przekonwertowanie danych wejsciowych i ustawienie zadan dla atrybutu tasks
+        Odpowiada za przekonwertowanie danych wejsciowych i ustawienie zadan dla atrybutu tasks.
 
         Parameters:
-            tasks ([{"id": string, "behaviours": [{"id": int,  "parameters": {"name": Behaviour.TYPES[nazwa_typu],
+            tasks_data ([{"id": string, "behaviours": [{"id": int,  "parameters": {"name": Behaviour.TYPES[nazwa_typu],
                 "to": "id_poi_string"},...], "robot": string, "start_time": "string_time",
                 "current_behaviour_index": "string_id",  "weight": float, "status": Task.STATUS_LIST[nazwa_statusu]},
                  ...]) - lista zadan dla robotow
         """
+        type_input_data = type(tasks_data)
+        if type_input_data != list:
+            raise WrongTaskInputData("Input tasks list should be list but '{}' was given.".format(type_input_data))
+        for task in tasks_data:
+            try:
+                Task(task)
+            except WrongTaskInputData as error:
+                raise WrongTaskInputData("One of the tasks is invalid. " + str(error))
+
         max_priority_value = 0
-        all_tasks = copy.deepcopy(tasks)
+        all_tasks = copy.deepcopy(tasks_data)
         for i, task in enumerate(all_tasks):
             max_priority_value = task[Task.PARAM["WEIGHT"]] \
                 if task[Task.PARAM["WEIGHT"]] > max_priority_value else max_priority_value
@@ -377,6 +391,10 @@ class TasksManager:
         self.tasks = []
         for i in tasks_id:
             raw_task = [task for task in all_tasks if task[Task.PARAM["ID"]] == i][0]
+            # przepisanie wartosci wejsciowej priorytetu dla zachowania kolejnosci i idei
+            raw_task[Task.PARAM["WEIGHT"]] = [task[Task.PARAM["WEIGHT"]] for task in tasks_data
+                                               if task[Task.PARAM["ID"]] == i][0]
+
             self.tasks.append(Task(raw_task))
 
     def remove_tasks_by_id(self, tasks_id):
@@ -1320,7 +1338,7 @@ class Dispatcher:
         free_tasks = []
         all_free_tasks = self.unanalyzed_tasks_handler.get_all_unasigned_unstarted_tasks()
         for task in all_free_tasks:
-            goal_id = task.get_task_first_goal()
+            goal_id = task.get_poi_goal()
             if free_slots_in_poi[goal_id] > 0:
                 free_slots_in_poi[goal_id] = free_slots_in_poi[goal_id] - 1
                 free_tasks.append(task)
