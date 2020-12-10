@@ -1225,12 +1225,13 @@ class SupervisorGraphCreator(DataConverter):
         # edge_col = [G[u][v]["color"] for u,v in self.graph.edges()]
 
         node_col = [self.graph.nodes[i]["color"] for i in self.graph.nodes()]
+
         # nx.draw_networkx(self.graph, node_pos,node_color = node_col, node_size=550,font_size=15,
         # with_labels=True,font_color="w", width=2)
 
         nx.draw_networkx(self.graph, node_pos, node_color=node_col, node_size=3000, font_size=25,
                          with_labels=True, font_color="w", width=4)
-        nx.draw_networkx_edge_labels(self.graph, node_pos, node_color=node_col,
+        nx.draw_networkx_edge_labels(self.graph, node_pos,
                                      edge_labels=max_robots, font_size=30)
 
         # nx.draw_networkx(self.graph, node_pos,edge_color= edge_col, node_color = node_col, node_size=3000,

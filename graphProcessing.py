@@ -42,8 +42,12 @@ class graphApi:
 
     gProcessed = self.processGraf(gData)
     #print(json.dumps(gProcessed, indent=2))
-    graf = gc.SupervisorGraphCreator(gProcessed["node_list"], gProcessed["edge_list"], gProcessed["poi_list"])
+    graf = gc.SupervisorGraphCreator(gProcessed["node_list"], gProcessed["edge_list"], self.standsList)
     self.graphList[gID] = { "ts": time.time(), "edges": gData, "graf": graf }
+
+    
+
+    graf.print_graph((125,125))
 
   def getGraphByID(self, gID):
     self.updateOne(gID)
@@ -54,15 +58,7 @@ class graphApi:
     return self.graphList.keys()
 
   def processGraf(self, gData):
-    gProcessed = {"node_list":{},"edge_list":{},"poi_list":{}}
-    
-    # stands processing
-    gProcessed["poi_list"] = {i+1 : self.standsList[i] for i in range(0, len(self.standsList) )}
-
-    # create standsID map
-    gpSTD = {}
-    for key, val in gProcessed["poi_list"].items():
-      gpSTD[val["id"]] = key
+    gProcessed = {"node_list":{},"edge_list":{}}
 
     # create gc.base_node_type map
     gcBNT = {}
@@ -93,9 +89,9 @@ class graphApi:
             nType = gcBNT[14] # intersection
             poiId = 0         # none
             if node["type"] > 0: nType = gcBNT[node["type"]]
-            elif node["poiID"] in gpSTD.keys():
-              poiId = gpSTD[node["poiID"]]
-              nType = gcBNT[9] # <======= na sztywno bo nie wiem jak to wyciągnąć z poi
+            else:
+              poiId = node["poiID"]
+              nType = gcBNT[1] # <======= na sztywno bo nie wiem jak to wyciągnąć z poi
 
             gProcessed["node_list"][nodeKey] = {"name": name, "pos": pos, "type": gc.base_node_type[nType], "poiId": poiId}
 
