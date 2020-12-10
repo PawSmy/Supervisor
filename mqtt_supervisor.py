@@ -22,7 +22,8 @@ class apiEndpoint:
     "getRobotsByID":"robots/",
     "checkRobotsByID":None,
     "getGraphs":"graphs/all",
-    "getGraph":"graphs/"
+    "getGraph":"graphs/",
+    "getStands":"movement/stands/all"
   }
 
   def __init__(self,login,password):
@@ -88,6 +89,9 @@ class apiEndpoint:
 
   def getAllGraphs(self):
     return self._raptorsAPI.get(self.endpoints["getGraphs"])
+
+  def getAllStands(self):
+    return self._raptorsAPI.get(self.endpoints["getStands"])
 
 # =====================================================================================================================
   # dla nowego endpointu
