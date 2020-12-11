@@ -412,7 +412,7 @@ class TasksManager:
         Zwraca liste wszystkich nieprzypisanych i nierozpoczetych zadan.
 
         Returns:
-             (list(task)): lista zadan
+             (list(Task)): lista zadan
         """
         return [task for task in self.tasks if task.robot_id is None and not task.check_if_task_started()]
 
@@ -548,8 +548,7 @@ class RobotsPlanManager:
     def __init__(self, robots, base_poi_edges):
         """
         Parameters:
-             robots ([{"id": string, "edge": (string,string), "planningOn": bool, "isFree": bool}, ... ]): przekazana
-                lista robotow do planowania zadan
+             robots ({ "id":Robot, "id": Robot, ...]): przekazana lista robotow do planowania zadan
              base_poi_edges ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
                 przypisac robota, jesli jest on w POI
         """
@@ -559,22 +558,18 @@ class RobotsPlanManager:
     def set_robots(self, robots, base_poi_edges):
         """
         Parameters:
-             robots ([{"id": string, "edge": (string,string), "planningOn": bool, "isFree": bool}, ... ]): przekazana
-                lista robotow do planowania zadan
+             robots ({ "id":Robot, "id": Robot, ...]): przekazana lista robotow do planowania zadan
             base_poi_edges ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
                 przypisac robota, jesli jest on w POI
         """
-        for data in robots:
-            try:
-                robot = Robot(data)
-                if robot.planning_on:
-                    if type(robot.edge) is not tuple:
-                        # zamiast krawedzi jest POI TODO pobrania POI z innego miejsca i wpisanie odpowiedniej
-                        # krawedzi, jesli nie jest ona znana dla danego robota.
-                        robot.edge = base_poi_edges[robot.edge]
-                    self.robots[robot.id] = robot
-            except WrongRobotInputData as error:
-                raise WrongRobotInputData("One of the robot is invalid. " + str(error))
+        for i in robots:
+            robot = robots[i]
+            if robot.planning_on:
+                if type(robot.edge) is not tuple:
+                    # zamiast krawedzi jest POI TODO pobrania POI z innego miejsca i wpisanie odpowiedniej
+                    # krawedzi, jesli nie jest ona znana dla danego robota.
+                    robot.edge = base_poi_edges[robot.edge]
+                self.robots[robot.id] = robot
 
     def get_robot_by_id(self, robot_id):
         """
