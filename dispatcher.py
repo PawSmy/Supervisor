@@ -32,6 +32,10 @@ class WrongRobotInputData(WrongData):
     """Wrong robot input data"""
 
 
+class TaskManagerError(DispatcherError):
+    """Task manager error"""
+
+
 class Behaviour:
     """
     Klasa zawierajaca informacje o pojedynczym zachowaniu dla robota
@@ -374,7 +378,7 @@ class TasksManager:
             try:
                 Task(task)
             except WrongTaskInputData as error:
-                raise WrongTaskInputData("One of the tasks is invalid. " + str(error))
+                raise WrongTaskInputData("One of the task is invalid. " + str(error))
 
         max_priority_value = 0
         all_tasks = copy.deepcopy(tasks_data)
@@ -537,10 +541,11 @@ class Robot:
         """
         Wyswietla informacje o robocie.
         """
-        data = "id: " + self.id + ", edge: " + str(self.edge) + ", planning_on: " + str(self.planning_on) + "\n"
+        data = "id: " + str(self.id) + ", edge: " + str(self.edge) + ", planning_on: " + str(self.planning_on) + "\n"
         data += "is free: " + str(self.is_free) + ", time remaining: " + str(self.time_remaining) + "\n"
-        data += "task: " + self.task.get_info + "\n"
-        data += "next edge" + str(self.next_task_edge) + ", end beh: " + self.end_beh_edge
+        task_info = self.task.get_info if self.task is not None else None
+        data += "task: " + str(task_info) + "\n"
+        data += "next edge" + str(self.next_task_edge) + ", end beh: " + str(self.end_beh_edge)
         return data
 
 
@@ -555,7 +560,7 @@ class RobotsPlanManager:
     def __init__(self, robots, base_poi_edges):
         """
         Parameters:
-             robots ([{"id": string, "edge": (int,int), "planningOn": bool, "isFree": bool}, ... ]): przekazana
+             robots ([{"id": string, "edge": (string,string), "planningOn": bool, "isFree": bool}, ... ]): przekazana
                 lista robotow do planowania zadan
              base_poi_edges ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
                 przypisac robota, jesli jest on w POI
@@ -566,18 +571,22 @@ class RobotsPlanManager:
     def set_robots(self, robots, base_poi_edges):
         """
         Parameters:
-             robots ([{"id": string, "edge": (int,int), "planningOn": bool, "isFree": bool}, ... ]): przekazana
+             robots ([{"id": string, "edge": (string,string), "planningOn": bool, "isFree": bool}, ... ]): przekazana
                 lista robotow do planowania zadan
             base_poi_edges ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
                 przypisac robota, jesli jest on w POI
         """
         for data in robots:
-            robot = Robot(data)
-            if robot.planning_on:
-                if type(robot.edge) is not tuple:
-                    # zamiast krawedzi jest POI
-                    robot.edge = base_poi_edges[robot.edge]
-                self.robots[robot.id] = robot
+            try:
+                robot = Robot(data)
+                if robot.planning_on:
+                    if type(robot.edge) is not tuple:
+                        # zamiast krawedzi jest POI TODO pobrania POI z innego miejsca i wpisanie odpowiedniej
+                        # krawedzi, jesli nie jest ona znana dla danego robota.
+                        robot.edge = base_poi_edges[robot.edge]
+                    self.robots[robot.id] = robot
+            except WrongRobotInputData as error:
+                raise WrongRobotInputData("One of the robot is invalid. " + str(error))
 
     def get_robot_by_id(self, robot_id):
         """
@@ -587,20 +596,41 @@ class RobotsPlanManager:
             robot_id (string): id robota
 
         Returns:
-            (Robot): informacje o robocie
+            (Robot): informacje o robocie, jeśli nie ma go na liście to None
         """
-        return self.robots[robot_id]
+        if self.check_if_robot_id_exist(robot_id):
+            return self.robots[robot_id]
+        else:
+            return None
 
     def set_task(self, robot_id, task):
         """
-        Przypisuje zadanie dla robota o podanym id.
+        Przypisuje zadanie dla robota o podanym id. Jeśli go nie ma to blad.
+        # TODO walidacja czy juz nie przypisano do jakiegos robota zadania o podanym ID
 
         Parameters:
             robot_id (string): id robota
             task (Task): zadanie dla robota
         """
+
+        if not self.check_if_robot_id_exist(robot_id):
+            raise TaskManagerError("Robot on id '{}' doesn't exist".format(robot_id))
+
+        if robot_id != task.robot_id and task.robot_id is not None:
+            raise TaskManagerError("Task is assigned to different robot. Task {} required robot with "
+                                   "id {} but {} was given.".format(task.id, task.robot_id, robot_id))
         task.robot_id = robot_id
         self.robots[robot_id].task = task
+
+    def check_if_robot_id_exist(self, robot_id):
+        """
+        Sprawdza czy robot o podanym id istnieje na liscie do planownaia.
+        Parameters:
+            robot_id (string): id robota
+        Returns:
+            (bool): Jesli robot istnieje to True inaczej False.
+        """
+        return robot_id in self.robots
 
     def set_next_edge(self, robot_id, next_edge):
         """
@@ -608,8 +638,12 @@ class RobotsPlanManager:
 
         Parameters:
             robot_id (string): id robota
-            next_edge ((int,int)): nastepna krawedz jaka ma sie poruszac robot
+            next_edge ((string,string)): nastepna krawedz jaka ma sie poruszac robot
         """
+        if not self.check_if_robot_id_exist(robot_id):
+            raise TaskManagerError("Robot on id '{}' doesn't exist".format(robot_id))
+        if self.robots[robot_id].task is None:
+            raise TaskManagerError("Can not assign next edge when robot {} doesn't have task.".format(robot_id))
         self.robots[robot_id].next_task_edge = next_edge
 
     def set_end_beh_edge(self, robot_id, end_beh_edge):
@@ -620,6 +654,13 @@ class RobotsPlanManager:
             robot_id (string): id robota
             end_beh_edge (bool): informacja o tym czy jest to koniec zachowania czy nie
         """
+        if not self.check_if_robot_id_exist(robot_id):
+            raise TaskManagerError("Robot on id '{}' doesn't exist".format(robot_id))
+        if self.robots[robot_id].task is None:
+            raise TaskManagerError("Can not set end behaviour edge when robot {} doesn't have task.".format(robot_id))
+        if self.robots[robot_id].next_task_edge is None:
+            raise TaskManagerError("Can not set end behaviour edge when robot {} doesn't have next_task_edge."
+                                   "".format(robot_id))
         self.robots[robot_id].end_beh_edge = end_beh_edge
 
     def get_free_robots(self):
@@ -644,6 +685,10 @@ class RobotsPlanManager:
         """
         Zwraca liste z id robotow, ktore znajduja sie na podanych krawedziach
 
+        Parameters:
+            edges ([(string,string), (string,string), ... ]): lista krawedzi na ktorych maja byc znalezione wszystkie
+                roboty
+
         Returns:
             ([string,string, ...]): lista z id robotow znajdujacych sie na wszystkich wskazanych krawedziach
         """
@@ -653,6 +698,10 @@ class RobotsPlanManager:
         """
         Zwraca liste z id robotow, ktore znajduja sie na podanych krawedziach. Roboty bez zadan zostaja pominiete.
 
+       Parameters:
+            edges ([(string,string), (string,string), ... ]): lista krawedzi na ktorych maja byc znalezione wszystkie
+                roboty
+
         Returns:
             ([string,string, ...]): lista z id robotow znajdujacych sie na wszystkich wskazanych krawedziach
         """
@@ -660,7 +709,7 @@ class RobotsPlanManager:
 
     def get_current_robots_goals(self):
         """
-        Zwraca liste robotow wraz z POI do ktorych jada
+        Zwraca slownik robotow wraz z POI do ktorych aktualnie jada roboty
 
         Returns:
             ({robot_id: poi_id, ...}): lista robotow z POI aktualnego celu
