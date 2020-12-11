@@ -178,6 +178,7 @@ class Task:
         self.start_time = task_data[self.PARAM["START_TIME"]]
         self.status = task_data[self.PARAM["STATUS"]]
         self.weight = task_data[self.PARAM["WEIGHT"]]
+        self.index = 0
         self.curr_behaviour_id = task_data[self.PARAM["CURRENT_BEH_ID"]]  # dla statusu done kolejne zachowania
         # jesli zadanie ma inny status to wartosc tyczy sie aktualnie wykonywanego zachowania
         try:
@@ -353,57 +354,44 @@ class TasksManager:
     def __init__(self, tasks):
         """
         Parameters:
-          tasks ([{"id": string, "behaviours": [{"id": int,  "parameters": {"name": Behaviour.TYPES[nazwa_typu],
-                "to": "id_poi_string"},...], "robot": string, "start_time": "string_time",
-                "current_behaviour_index": "string_id",  "weight": float, "status": Task.STATUS_LIST[nazwa_statusu]},
-                 ...]) - lista zadan dla robotow
+          tasks ([Task, Task, ...) - lista zadan dla robotow
         """
         self.tasks = []
         self.set_tasks(tasks)
 
-    def set_tasks(self, tasks_data):
+    def set_tasks(self, tasks):
         """
         Odpowiada za przekonwertowanie danych wejsciowych i ustawienie zadan dla atrybutu tasks.
 
         Parameters:
-            tasks_data ([{"id": string, "behaviours": [{"id": int,  "parameters": {"name": Behaviour.TYPES[nazwa_typu],
-                "to": "id_poi_string"},...], "robot": string, "start_time": "string_time",
-                "current_behaviour_index": "string_id",  "weight": float, "status": Task.STATUS_LIST[nazwa_statusu]},
-                 ...]) - lista zadan dla robotow
+            tasks ([Task, Task, ...) - lista zadan dla robotow
         """
-        type_input_data = type(tasks_data)
+        type_input_data = type(tasks)
         if type_input_data != list:
             raise WrongTaskInputData("Input tasks list should be list but '{}' was given.".format(type_input_data))
-        for task in tasks_data:
-            try:
-                Task(task)
-            except WrongTaskInputData as error:
-                raise WrongTaskInputData("One of the task is invalid. " + str(error))
 
         max_priority_value = 0
-        all_tasks = copy.deepcopy(tasks_data)
+        all_tasks = copy.deepcopy(tasks)
         for i, task in enumerate(all_tasks):
-            max_priority_value = task[Task.PARAM["WEIGHT"]] \
-                if task[Task.PARAM["WEIGHT"]] > max_priority_value else max_priority_value
-            task["index"] = i + 1
+            max_priority_value = task.weight if task.weight > max_priority_value else max_priority_value
+            task.index = i + 1
 
         # odwrocenie wynika pozniej z funkcji sortujacej, zadanie o najwyzszym priorytecie powinno miec
         # najnizsza wartosc liczbowa
         for task in all_tasks:
-            task[Task.PARAM["WEIGHT"]] = max_priority_value - task[Task.PARAM["WEIGHT"]]
+            task.weight = max_priority_value - task.weight
 
         # sortowanie zadan po priorytetach i czasie zgłoszenia
-        tasks_id = [data[Task.PARAM["ID"]] for data in sorted(all_tasks, key=lambda
-                    task_data:(task_data[Task.PARAM["WEIGHT"]], task_data["index"]), reverse=False)]
+        tasks_id = [task.id for task in sorted(all_tasks, key=lambda
+                    task_data:(task_data.weight, task_data.index), reverse=False)]
 
         self.tasks = []
         for i in tasks_id:
-            raw_task = [task for task in all_tasks if task[Task.PARAM["ID"]] == i][0]
-            # przepisanie wartosci wejsciowej priorytetu dla zachowania kolejnosci i idei
-            raw_task[Task.PARAM["WEIGHT"]] = [task[Task.PARAM["WEIGHT"]] for task in tasks_data
-                                               if task[Task.PARAM["ID"]] == i][0]
+            updated_task = [task for task in all_tasks if task.id == i][0]
+            # przepisanie wartosci wejsciowej priorytetu dla zachowania kolejnosci
+            updated_task.weight = [task.weight for task in tasks if task.id == i][0]
 
-            self.tasks.append(Task(raw_task))
+            self.tasks.append(updated_task)
 
     def remove_tasks_by_id(self, tasks_id):
         """
