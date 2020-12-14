@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt  # do wizualizaccji i rysowania grafu
 import json
 from shapely.geometry import LineString
 from shapely.ops import unary_union
-from dispatcher import Behaviour
+from dispatcher import *
 
-corridor_width = 0.5  # 1 szerokosc korytarza dla pojedynczego robota
-robot_length = 0.4  # 0.6
+corridor_width = 0.9  # 1 szerokosc korytarza dla pojedynczego robota
+robot_length = 0.7  # 0.6
 docking_time_weight = 20
 undocking_time_weight = 20
 wait_weight = 10
@@ -628,21 +628,21 @@ class SupervisorGraphCreator(DataConverter):
                                 color=node_color["dock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
                                 behaviour=Behaviour.TYPES["dock"], robots=[],
-                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
+                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0], robots=[])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["wait"], sourceNode=node_id,
                                 color=node_color["wait"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
                                 behaviour=Behaviour.TYPES["wait"], robots=[],
-                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
+                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0], robots=[])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["undock"], sourceNode=node_id,
                                 color=node_color["undock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
                                 behaviour=Behaviour.TYPES["undock"], robots=[],
-                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
+                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0], robots=[])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["end"], sourceNode=node_id,
@@ -657,7 +657,7 @@ class SupervisorGraphCreator(DataConverter):
                                 color=node_color["wait"], poiId=no_dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
                                 behaviour=Behaviour.TYPES["wait"], robots=[],
-                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
+                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0], robots=[])
             self.graph_node_id = self.graph_node_id + 1
 
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["end"], sourceNode=node_id,

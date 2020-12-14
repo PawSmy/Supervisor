@@ -60,10 +60,11 @@ class Behaviour:
         "BEH_POI": "to"  # nazwa pola, ktore odnosi sie do celu (POI)
     }
     TYPES = {  # slownik wartosci zachowan dla robota, wartoscia jest stala nazwa dla danego typu zachowania
-        "goto": "1",
-        "dock": "2",
+        "goto": "GO_TO",
+        "dock": "DOCK",
         "wait": "3",
-        "undock": "4"
+        "bat_ex": "BAT_EX",
+        "undock": "UNDOCK"
     }
 
     def __init__(self, behaviour_data):
@@ -75,6 +76,12 @@ class Behaviour:
         self.validate_data(behaviour_data)
         self.id = behaviour_data[self.PARAM["ID"]]
         self.parameters = behaviour_data[self.PARAM["BEH_PARAM"]]
+
+    def __getitem__(self, key):
+        return self.parameters[key]
+
+    def __contains__(self, key):
+        return key in self.parameters
 
     def get_type(self):
         """
@@ -358,7 +365,8 @@ class TasksManager:
           tasks ([Task, Task, ...) - lista zadan dla robotow
         """
         self.tasks = []
-        self.set_tasks(tasks)
+        self.tasks = tasks
+        # self.set_tasks(tasks)
 
     def set_tasks(self, tasks):
         """
@@ -441,6 +449,7 @@ class Robot:
         self.validate_input(robot_data)
         self.id = robot_data["id"]
         self.edge = robot_data["edge"]
+        self.poi_id = robot_data["poiId"]
         self.planning_on = robot_data["planningOn"]
         self.is_free = robot_data["isFree"]
         self.time_remaining = robot_data["timeRemaining"]
@@ -553,7 +562,7 @@ class RobotsPlanManager:
              base_poi_edges ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
                 przypisac robota, jesli jest on w POI
         """
-        self.robots = {}
+        self.robots = robots
         self.set_robots(robots, base_poi_edges)
 
     def set_robots(self, robots, base_poi_edges):
@@ -571,6 +580,7 @@ class RobotsPlanManager:
                     # krawedzi, jesli nie jest ona znana dla danego robota.
                     # TODO weryfikacja czy dla danego poi istnieje krawedz na grafie, istnieje w podanym slowniku
                     # wejsciowym
+                    print("robot edge/poi id: ", robot.edge)
                     robot.edge = base_poi_edges[robot.edge]
                 self.robots[robot.id] = robot
 
@@ -1098,7 +1108,7 @@ class Dispatcher:
         """
         self.planning_graph = PlanningGraph(graph_data)
         self.pois = PoisManager(graph_data)
-
+        
         self.robots_plan = RobotsPlanManager(robots, self.planning_graph.get_base_pois_edges())
         self.init_robots_plan(robots)
 
@@ -1143,8 +1153,15 @@ class Dispatcher:
              ktory moze zostac od razu zrealizowany, gdyz nie ma kolizji, w preciwnym wypadku None
         """
         self.planning_graph = PlanningGraph(graph_data)
+        print("tasks len: ", str(len(tasks)))
+        #for task in tasks:
+        #    task.print_info()
         self.set_plan(robots, tasks)
+
         given_robot = self.robots_plan.get_robot_by_id(robot_id)
+        print("robot")
+        print(given_robot.task.id)
+        print(given_robot.next_task_edge)
         if given_robot.next_task_edge is None:
             return None
         else:
