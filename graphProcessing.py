@@ -14,7 +14,7 @@ class graphApi:
       self.standsList = response.json()
       self.updateOne("5f996c6f65d0891beaa67bdf")
 
-      #self.updateRoboOnEdgeList("5f996c6f65d0891beaa67bdf","robo1",(1,2))
+      #self.updateRoboOnEdge("5f996c6f65d0891beaa67bdf","robo1",(1,2))
 
   def updateAll(self):
     response = rAPI.getAllStands()
@@ -113,12 +113,12 @@ class graphApi:
     
     return gProcessed
   
-  def updateRoboOnEdgeList(self,gID,rID,edge): #graph ID, robo ID, edge vector (u,v)
+  def updateRoboOnEdge(self,gID,rID,edge): #graph ID, robo ID, edge vector (u,v)
     graf = self.getGraphByID(gID,checkUpdate = True).get_graph()
-    self.removeRoboFromEdgeLists(gID,rID)
+    self.removeRoboFromEdge(gID,rID)
     graf[edge[0]][edge[1]]["robotsList"].append(rID)
   
-  def removeRoboFromEdgeLists(self,gID,rID): #graph ID, robo ID
+  def removeRoboFromEdge(self,gID,rID): #graph ID, robo ID
     graf = self.getGraphByID(gID,checkUpdate = False).get_graph()
     for edge in graf.edges(data=True):
       if "robotsList" in edge[2].keys():
