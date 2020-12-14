@@ -14,6 +14,8 @@ class graphApi:
       self.standsList = response.json()
       self.updateOne("5f996c6f65d0891beaa67bdf")
 
+      #self.updateRoboOnEdgeList("5f996c6f65d0891beaa67bdf","robo1",(1,2))
+
   def updateAll(self):
     response = rAPI.getAllStands()
     if(response.status_code == 200):
@@ -41,17 +43,16 @@ class graphApi:
         return 0
 
     gProcessed = self.processGraf(gData)
-    #print(json.dumps(gProcessed, indent=2))
     graf = gc.SupervisorGraphCreator(gProcessed["node_list"], gProcessed["edge_list"], self.standsList)
+    self.rewriteRobotsOnEdges(gID,graf)
     self.graphList[gID] = { "ts": time.time(), "edges": gData, "graf": graf }
 
-    
 
-    graf.print_graph((125,125))
-
-  def getGraphByID(self, gID):
-    self.updateOne(gID)
-    return self.graphList[gID]["graf"]
+  def getGraphByID(self, gID, checkUpdate = False):
+    if gID in self.graphList.keys():
+      if checkUpdate: self.updateOne(gID)
+      return self.graphList[gID]["graf"]
+    return None
 
   @property
   def graphIDlist(self):
@@ -111,6 +112,30 @@ class graphApi:
       edgeKey += 1
     
     return gProcessed
+  
+  def updateRoboOnEdgeList(self,gID,rID,edge): #graph ID, robo ID, edge vector (u,v)
+    graf = self.getGraphByID(gID,checkUpdate = True).get_graph()
+    self.removeRoboFromEdgeLists(gID,rID)
+    graf[edge[0]][edge[1]]["robotsList"].append(rID)
+  
+  def removeRoboFromEdgeLists(self,gID,rID): #graph ID, robo ID
+    graf = self.getGraphByID(gID,checkUpdate = False).get_graph()
+    for edge in graf.edges(data=True):
+      if "robotsList" in edge[2].keys():
+        if rID in edge[2]["robotsList"]:
+          edge[2]["robotsList"].remove(rID)
+
+  def rewriteRobotsOnEdges(self,gID,dst):
+    if gID in self.graphList.keys():
+      src = self.getGraphByID(gID,checkUpdate = False).get_graph()
+      for edge in dst.get_graph().edges(data=True):
+        if src[edge[0]][edge[1]]:
+          edge[2]["robotsList"] = src[edge[0]][edge[1]]["robotsList"]
+        else:
+          edge[2]["robotsList"] = []
+    else:
+      for edge in dst.get_graph().edges(data=True):
+        edge[2]["robotsList"] = []
 
 # All below is for selfstanfing class, this is part of supervisor.py
 class apiEndpoint:
