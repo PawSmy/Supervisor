@@ -6,6 +6,7 @@ import numpy as np
 import time
 from datetime import datetime
 
+
 class DispatcherError(Exception):
     """Base class for exceptions in this module."""
     pass
@@ -34,6 +35,14 @@ class WrongRobotInputData(WrongData):
 
 class TaskManagerError(DispatcherError):
     """Task manager error"""
+
+
+class PoisManagerError(DispatcherError):
+    """Pois manager error"""
+
+
+class PlaningGraphError(DispatcherError):
+    """Planing graph error"""
 
 
 class Behaviour:
@@ -334,7 +343,7 @@ class Task:
         """
         Wyswietla informacje o zadaniu.
         """
-        data = "id: " + str(self.id) + ", robot_id: " +  str(self.robot_id) + ",start_tme: " + str(self.start_time)+"\n"
+        data = "id: " + str(self.id) + ", robot_id: " + str(self.robot_id) + ",start_tme: " + str(self.start_time)+"\n"
         data += "current beh id: " + str(self.curr_behaviour_id) + ", status: " + str(self.status) +\
                 ", weight: " + str(self.weight) + "\n"
         for behaviour in self.behaviours:
@@ -568,6 +577,8 @@ class RobotsPlanManager:
                 if type(robot.edge) is not tuple:
                     # zamiast krawedzi jest POI TODO pobrania POI z innego miejsca i wpisanie odpowiedniej
                     # krawedzi, jesli nie jest ona znana dla danego robota.
+                    # TODO weryfikacja czy dla danego poi istnieje krawedz na grafie, istnieje w podanym slowniku
+                    # wejsciowym
                     robot.edge = base_poi_edges[robot.edge]
                 self.robots[robot.id] = robot
 
@@ -721,15 +732,15 @@ class PoisManager:
 
     def set_pois(self, graph):
         """
-        Na podstawie danych z grafu tworzy liste POI przypisanych do wezlow grafu.
+        Na podstawie danych z grafu tworzy slownik POI przypisanych do wezlow grafu.
 
         Parameters:
              graph (SupervisorGraphCreator): rozszerzony graf do planowania
         """
         for i in graph.source_nodes:
             node = graph.source_nodes[i]
-            if node["poiId"] != 0:
-                self.pois[node["poiId"]] = {"type": node["type"]}
+            if node["poiId"] != 0:  # TODO zweryfikowac wartosc dla wezla bez POI
+                self.pois[node["poiId"]] = node["type"]
 
     def check_if_queue(self, poi_id):
         """
@@ -741,14 +752,16 @@ class PoisManager:
         Returns:
             (bool): informacja czy poi jest typu kolejkownaia (queue)
         """
-        return self.pois[poi_id]["type"] == gc.base_node_type["queue"]
+        if poi_id not in self.pois:
+            raise PoisManagerError("Poi id '{}' doesn't exist".format(poi_id))
+        return self.pois[poi_id] == gc.base_node_type["queue"]
 
-    def get_raw_pois_list(self):
+    def get_raw_pois_dict(self):
         """
-        Zwraca pusta liste z id poi
+        Zwraca pusta slownik z id poi
 
         Returns:
-            ({poi_id: None, poi_id: None, ...}): pusta lista z POI
+            ({poi_id: None, poi_id: None, ...}): pusty slownik z POI
         """
         poi_list = {}
         for poi_id in self.pois:
@@ -765,30 +778,32 @@ class PoisManager:
         Returns:
             (gc.base_node_type[]): typ POI
         """
-        return self.pois[poi_id]["type"]
+        if poi_id not in self.pois:
+            raise PoisManagerError("Poi id '{}' doesn't exist".format(poi_id))
+        return self.pois[poi_id]
 
-    def get_pois_type(self):
-        """
-        Zwraca liste z typami wszystkich POI
+    # def get_pois_type(self):
+    #     """
+    #     Zwraca liste z typami wszystkich POI
+    #
+    #     Returns:
+    #         ({poi_id: {"type": gc.base_node_type[]}, ...): lista POI wraz z typami
+    #     """
+    #     # pois_list = {}
+    #     # for poi_id in self.pois:
+    #     #     pois_list[poi_id] = {"type": self.pois[poi_id]["type"]}
+    #     # return pois_list
 
-        Returns:
-            ({poi_id: {"type": gc.base_node_type[]}, ...): lista POI wraz z typami
-        """
-        pois_list = {}
-        for poi_id in self.pois:
-            pois_list[poi_id] = {"type": self.pois[poi_id]["type"]}
-        return pois_list
-
-    def get_pois_id(self):
-        """
-        Zwraca liste z ID wszystkich POI polaczonych z grafem
-        Returns:
-             (list): lista z id POI
-        """
-        poi_list = []
-        for poi_id in self.pois.keys():
-            poi_list.append(poi_id)
-        return poi_list
+    # def get_pois_id(self):
+    #     """
+    #     Zwraca liste z ID wszystkich POI polaczonych z grafem
+    #     Returns:
+    #          (list): lista z id POI
+    #     """
+    #     poi_list = []
+    #     for poi_id in self.pois.keys():
+    #         poi_list.append(poi_id)
+    #     return poi_list
 
 
 class PlanningGraph:
@@ -804,16 +819,17 @@ class PlanningGraph:
             graph (GraphCreator):
         """
         self.graph = copy.deepcopy(graph.graph)
-        self.extend_graph()
+        self.pois = PoisManager(graph).pois
+        # self.extend_graph()
 
-    def extend_graph(self):
-        """
-        Wprowadzenie dodatkowego parametru na krawedzi zawierajacego id robotow oraz wage do planowania, ktora
-        sie dynamicznie zmienia i blokuje mozliwosc planowania przez inne POI.
-        """
-        for edge in self.graph.edges(data=True):
-            self.graph.edges[edge[0], edge[1]]["robotsId"] = []
-            self.graph.edges[edge[0], edge[1]]["planWeight"] = self.graph.edges[edge[0], edge[1]]["weight"]
+    # def extend_graph(self):
+    #     """
+    #     Wprowadzenie dodatkowego parametru na krawedzi zawierajacego id robotow oraz wage do planowania, ktora
+    #     sie dynamicznie zmienia i blokuje mozliwosc planowania przez inne POI.
+    #     """
+    #     for edge in self.graph.edges(data=True):
+    #         self.graph.edges[edge[0], edge[1]]["robots"] = []
+    #         self.graph.edges[edge[0], edge[1]]["planWeight"] = self.graph.edges[edge[0], edge[1]]["weight"]
 
     def block_other_pois(self, robot_node, target_node):
         """
@@ -821,8 +837,10 @@ class PlanningGraph:
         docelowym.
 
         Parameters:
-            robot_node (int): wezel grafu z supervisora w ktorym aktualnie jest robot
-            target_node (int): wezel grafu z supervisora do ktorego zmierza robot
+            robot_node (string): wezel grafu z supervisora w ktorym aktualnie jest robot
+            target_node (string): wezel grafu z supervisora do ktorego zmierza robot
+
+        # TODO do przerobki lista nieblokujacych POI, zamiast 0 ma byc wartosc dla krawedzi niezwiazanych z POI np None
         """
         no_block_poi_ids = [0, self.graph.nodes[robot_node]["poiId"], self.graph.nodes[target_node]["poiId"]]
         for edge in self.graph.edges(data=True):
@@ -839,20 +857,21 @@ class PlanningGraph:
 
         Parameters:
             poi_id (string): id POI z bazy
-            poi_type (): typ poi
+            poi_type (gc.base_node_type["nazwa_typu"]): typ poi
 
         Returns:
-            graphNode (int): koncowy wezel krawedzi dojazdu do wlasciwego stanowiska
+            (string): koncowy wezel krawedzi dojazdu do wlasciwego stanowiska
         """
-        pois_nodes = [node for node in self.graph.nodes(data=True) if "poiId" in node[1]]
+        if poi_id not in self.pois:
+            raise PlaningGraphError("POI {} doesn't exist on graph.".format(poi_id))
         if poi_type["nodeSection"] == gc.base_node_section_type["dockWaitUndock"]:
-            return [node[0] for node in pois_nodes if node[1]["poiId"] == poi_id
+            return [node[0] for node in self.graph.nodes(data=True) if node[1]["poiId"] == poi_id
                     and node[1]["nodeType"] == gc.new_node_type["dock"]][0]
         elif poi_type["nodeSection"] == gc.base_node_section_type["waitPOI"]:
-            return [node[0] for node in pois_nodes if node[1]["poiId"] == poi_id
+            return [node[0] for node in self.graph.nodes(data=True) if node[1]["poiId"] == poi_id
                     and node[1]["nodeType"] == gc.new_node_type["wait"]][0]
         else:
-            return [node[0] for node in pois_nodes if node[1]["poiId"] == poi_id][0]
+            return [node[0] for node in self.graph.nodes(data=True) if node[1]["poiId"] == poi_id][0]
 
     def get_end_docking_node(self, poi_id):
         """
@@ -862,10 +881,13 @@ class PlanningGraph:
             poi_id (string): id POI z bazy
 
         Returns:
-            graphNode (int): koncowy wezel krawedzi zwiazanej z zachowaniem dokowania
+            (string): koncowy wezel krawedzi zwiazanej z zachowaniem dokowania
         """
-        pois_nodes = [node for node in self.graph.nodes(data=True) if "poiId" in node[1]]
-        poi_node = [node for node in pois_nodes if node[1]["poiId"] == poi_id
+        if poi_id not in self.pois:
+            raise PlaningGraphError("POI {} doesn't exist on graph.".format(poi_id))
+        if self.pois[poi_id]["nodeSection"] != gc.base_node_section_type["dockWaitUndock"]:
+            raise PlaningGraphError("POI {} should be one of docking type.".format(poi_id))
+        poi_node = [node for node in self.graph.nodes(data=True) if node[1]["poiId"] == poi_id
                     and node[1]["nodeType"] == gc.new_node_type["wait"]]
         return poi_node[0][0]
 
@@ -875,18 +897,22 @@ class PlanningGraph:
 
         Parameters:
             poi_id (string): id POI z bazy
-            poi_type (): typ POI
+            poi_type (gc.base_node_type["nazwa_typu"]): typ POI
 
         Returns:
-            graphNode (int): koncowy wezel krawedzi zwiazanej z zachowaniem WAIT
+            (string): koncowy wezel krawedzi zwiazanej z zachowaniem WAIT
         """
-        pois_nodes = [node for node in self.graph.nodes(data=True) if "poiId" in node[1]]
+        if poi_id not in self.pois:
+            raise PlaningGraphError("POI {} doesn't exist on graph.".format(poi_id))
+        if self.pois[poi_id]["nodeSection"] not in [gc.base_node_section_type["dockWaitUndock"],
+                                                    gc.base_node_section_type["waitPOI"]]:
+            raise PlaningGraphError("POI {} should be one of docking/wait POI.".format(poi_id))
         poi_node = None
         if poi_type["nodeSection"] == gc.base_node_section_type["dockWaitUndock"]:
-            poi_node = [node for node in pois_nodes if node[1]["poiId"] == poi_id
+            poi_node = [node for node in self.graph.nodes(data=True) if node[1]["poiId"] == poi_id
                         and node[1]["nodeType"] == gc.new_node_type["undock"]]
         elif poi_type["nodeSection"] == gc.base_node_section_type["waitPOI"]:
-            poi_node = [node for node in pois_nodes if node[1]["poiId"] == poi_id
+            poi_node = [node for node in self.graph.nodes(data=True) if node[1]["poiId"] == poi_id
                         and node[1]["nodeType"] == gc.new_node_type["end"]]
         return poi_node[0][0]
 
@@ -898,43 +924,44 @@ class PlanningGraph:
             poi_id (string): id POI z bazy
 
         Returns:
-            graphNode (int): koncowy wezel krawedzi zwiazanej z zachowaniem UNDOCK
+            (string): koncowy wezel krawedzi zwiazanej z zachowaniem UNDOCK
         """
-        pois_nodes = [node for node in self.graph.nodes(data=True) if "poiId" in node[1]]
-        poi_node = [node for node in pois_nodes if node[1]["poiId"] == poi_id
+        if poi_id not in self.pois:
+            raise PlaningGraphError("POI {} doesn't exist on graph.".format(poi_id))
+        if self.pois[poi_id]["nodeSection"] != gc.base_node_section_type["dockWaitUndock"]:
+            raise PlaningGraphError("POI {} should be one of docking/wait POI.".format(poi_id))
+        poi_node = [node for node in self.graph.nodes(data=True) if node[1]["poiId"] == poi_id
                     and node[1]["nodeType"] == gc.new_node_type["end"]]
 
         return poi_node[0][0]
 
-    def get_max_allowed_robots_using_pois(self, poi_list):
+    def get_max_allowed_robots_using_pois(self):
         """
         Zwraca liste zawierajaca maksymalna liczbe robotow, ktora moze byc obslugiwana przez dany typ POI.
         Przekroczenie tej liczby oznacza, ze roboty moga zaczac sie kolejkowac na glownym szlaku komunikacyjnym.
-
-        Attributes:
-            poi_list ({poi_id: {"type": gc.base_node_type[]}, ...}): POI do ktorych ma zostac znaleziona i przypisana
-                maksymalna liczba robotow
 
         Returns:
             ({poiId: int, poiId2: int,...}): Slownik z liczba robotow dla ktorego kluczem jest ID POI z bazy a
             maksymalna liczba robotow jaka moze oczekiwac i byc obslugiwana przy stanowisku.
         """
-        max_robot_pois = {i: 0 for i in poi_list}
+        max_robot_pois = {i: 0 for i in self.pois}
         connected_edges = [edge for edge in self.graph.edges(data=True) if "connectedPoi" in edge[2]]
         for edge in connected_edges:
             poi_id = edge[2]["connectedPoi"]
-            poi_type = poi_list[poi_id]["type"]
+            poi_type = self.pois[poi_id]
             if poi_type == gc.base_node_type["parking"]:
                 # dla POI parkingowych tylko 1 robot
                 max_robot_pois[poi_id] = 1
             elif poi_type == gc.base_node_type["queue"]:
                 # dla POI z kolejkowaniem tylko tyle robotów ile wynika z krawędzi oczekiwania
-                max_robot_pois[poi_id] = edge[2]["maxRobots"]
+                max_robots = edge[2]["maxRobots"]
+                max_robot_pois[poi_id] = max_robots if max_robots > 0 else 1
             elif poi_type["nodeSection"] in [gc.base_node_section_type["waitPOI"],
                                              gc.base_node_section_type["dockWaitUndock"]] \
                     and edge[2]["edgeGroupId"] == 0:
                 # 1 dla obsługi samego stanowiska + maksymalna liczba robotów na krawędzi związana z danym POI
-                max_robot_pois[poi_id] = edge[2]["maxRobots"] + 1
+                max_robots = edge[2]["maxRobots"] + 1
+                max_robot_pois[poi_id] = max_robots if max_robots > 0 else 1
         return max_robot_pois
 
     def get_group_id(self, edge):
@@ -943,10 +970,10 @@ class PlanningGraph:
         siebie wzajemnie zalezne.
 
         Parameters:
-            edge((int,int)): krawedz grafu
+            edge((string,string)): krawedz grafu
 
         Returns:
-            (int): id grupy krawedzi, 0 dla krawedzi nie wchodzacych w sklad grupy
+            (string): id grupy krawedzi, 0 dla krawedzi nie wchodzacych w sklad grupy
         """
         return self.graph.edges[edge]["edgeGroupId"]
 
@@ -956,7 +983,7 @@ class PlanningGraph:
         ona do grupy. Dla niezerowych grup liczba przypisanych robotow do krawedzi grafu musi być 0 lub 1.
 
         Parameters:
-            edge (int,int): krawedz dla ktorej maja byc zwrocone roboty
+            edge (string,string): krawedz dla ktorej maja byc zwrocone roboty
 
         Returns:
             ([string, string, ... ]): lista id robotow, ktore przypisane sa do danej krawedzi lub jesli krawedz stanowi
@@ -967,11 +994,15 @@ class PlanningGraph:
         if group_id != 0:
             # krawedz nalezy do grupy
             for edge_data in self.graph.edges(data=True):
-                if self.get_group_id(edge) == group_id:
-                    robots_ids = robots_ids + edge_data[2]["robotsId"]
-            assert len(robots_ids) <= 1, "Only 1 robot can be on edge belongs to group"
+                if self.get_group_id((edge_data[0], edge_data[1])) == group_id:
+                    robots_ids = robots_ids + edge_data[2]["robots"]
+            if len(robots_ids) > 1:
+                raise PlaningGraphError("Only 1 robot can be on edge '{}' belongs to group '{}'".format(edge, group_id))
         else:
-            robots_ids = self.graph.edges[edge]["robotsId"]
+            robots_ids = self.graph.edges[edge]["robots"]
+            if len(robots_ids) > self.graph.edges[edge]["maxRobots"]:
+                raise PlaningGraphError("Max allowed robots on edge ({},{}) is {} but was given {}.".format(
+                    edge[0], edge[1], self.graph.edges[edge]["maxRobots"], len(robots_ids)))
         return robots_ids
 
     def get_edges_by_group(self, group_id):
@@ -982,7 +1013,7 @@ class PlanningGraph:
             group_id (int): id grupy krawedzi
 
         Returns:
-            ([(int,int), (int,int), ... ]): lista krawedzi nalezaca do podanej grupy
+            ([(string,string), (string,string), ... ]): lista krawedzi nalezaca do podanej grupy
         """
         return [(edge[0], edge[1]) for edge in self.graph.edges(data=True) if edge[2]["edgeGroupId"] == group_id]
 
@@ -991,7 +1022,7 @@ class PlanningGraph:
         Zwraca maksymalna dozwolona liczbe robotow dla danej krawedzi. Jesli krawedz nalezy do grupy to 1 robot.
 
         Attributes:
-            edge ((int,int)): dana krawedz
+            edge ((string,string)): dana krawedz
 
         Returns:
               (int): maksymalna liczba robotow jaka moze znajdowac sie na danej krawedzi
@@ -1003,13 +1034,13 @@ class PlanningGraph:
         Dla podanej krawedzi zwraca zwiazane z nia POI, jesli takie istnieje.
 
         Parameters:
-            edge (int,int): krawedz grafu
+            edge (string,string): krawedz grafu
 
         Returns:
             (string): zwraca id poi, jesli krawedz zwiazana jest z POI, jesli nie to None
         """
         poi_node = self.graph.nodes[edge[1]]['poiId']
-        if poi_node != 0:
+        if poi_node != 0:  # TODO weryfikacja dla jakich wartosci poi node wezel nie ma poi None czy "0"
             return poi_node
         else:
             return None
@@ -1017,38 +1048,65 @@ class PlanningGraph:
     def get_path(self, start_node, end_node):
         """
         Zwraca sciezke od aktualnego polozenia robota do celu.
-
+        TODO - obsluga gry wezel poczatkowy jest tym samym co koncowy np. ponowne zlecenie dojazdu tego samego
+        robota do parkingu
         Parameters:
-            start_node (int): wezel od ktorego ma byc rozpoczete planowanie
-            end_node (int): wezel celu
+            start_node (string): wezel od ktorego ma byc rozpoczete planowanie
+            end_node (string): wezel celu
 
         Returns:
             (list): kolejne krawedzie grafu, ktorymi ma sie poruszac robot, aby dotrzec do celu
         """
         self.block_other_pois(start_node, end_node)
+        if start_node == end_node:
+            raise PlaningGraphError("Wrong plan. Start node '{}' should be different than end node '{}'."
+                                    .format(start_node, end_node))
         return nx.shortest_path(self.graph, source=start_node, target=end_node, weight='planWeight')
 
-    def get_base_pois_edges(self, pois_id):
+    def get_path_length(self, start_node, end_node):
         """
-        Parameters:
-            pois_id ({robot_id: poi_id, ...}): lista robotow z POI aktualnego celu
+        Zwraca wage dojazdu do punktu.
 
+        Parameters:
+            start_node (string): wezel od ktorego ma byc rozpoczete planowanie
+            end_node (string): wezel celu
+
+        Returns:
+            (float): czas dojazdu od start_node do end_node
+        """
+        self.block_other_pois(start_node, end_node)
+        if start_node == end_node:
+            return 0
+        else:
+            return nx.shortest_path_length(self.graph, source=start_node, target=end_node, weight='planWeight')
+
+    def get_base_pois_edges(self):
+        """
         Returns:
             ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
              przypisac robota, jesli jest on w POI
         """
         base_poi_edges = {}
-        for poi_id in pois_id:
+        for poi_id in self.pois:
             poi_nodes = [node[0] for node in self.graph.nodes(data=True) if node[1]["poiId"] == poi_id]
             if len(poi_nodes) == 1:
                 # poi jest typu parking lub queue
                 edges = [edge for edge in self.graph.edges(data=True) if edge[1] in poi_nodes][0]
                 base_poi_edges[poi_id] = (edges[0], edges[1])
-            elif len(poi_nodes) > 1:
-                # poi z i bez dokowania
-                edges = [edge for edge in self.graph.edges(data=True) if
-                         edge[0] == poi_nodes[-2] and edge[1] == poi_nodes[-1]]
-                base_poi_edges[poi_id] = (edges[0][0], edges[0][1])
+            elif len(poi_nodes) == 4:
+                # poi z dokowaniem
+                start_node = [node for node in poi_nodes
+                              if self.graph.nodes[node]["nodeType"] == gc.new_node_type["undock"]]
+                end_node = [node for node in poi_nodes if self.graph.nodes[node]["nodeType"] == gc.new_node_type["end"]]
+                base_poi_edges[poi_id] = (start_node[0], end_node[0])
+            elif len(poi_nodes) == 2:
+                # poi bez dokowania
+                start_node = [node for node in poi_nodes
+                            if self.graph.nodes[node]["nodeType"] == gc.new_node_type["wait"]]
+                end_node = [node for node in poi_nodes if self.graph.nodes[node]["nodeType"] == gc.new_node_type["end"]]
+                base_poi_edges[poi_id] = (start_node[0], end_node[0])
+            else:
+                raise PlaningGraphError("Input graph wrong structure.")
         return base_poi_edges
 
 
@@ -1084,7 +1142,7 @@ class Dispatcher:
         self.planning_graph = PlanningGraph(graph_data)
         self.pois = PoisManager(graph_data)
 
-        base_poi_edges = self.planning_graph.get_base_pois_edges(self.pois.get_pois_id())
+        base_poi_edges = self.planning_graph.get_base_pois_edges()
         self.robots_plan = RobotsPlanManager(robots, base_poi_edges)
         self.init_robots_plan(robots)
 
@@ -1169,7 +1227,7 @@ class Dispatcher:
             robots ([{"id": string, "edge": (int, int), "planningOn": bool, "isFree": bool, "timeRemaining": float}
                 ,...]): lista z danymi o robocie
         """
-        base_poi_edges = self.planning_graph.get_base_pois_edges(self.pois.get_pois_id())
+        base_poi_edges = self.planning_graph.get_base_pois_edges()
         self.robots_plan = RobotsPlanManager(robots, base_poi_edges)
 
     def set_tasks(self, tasks):
@@ -1346,7 +1404,7 @@ class Dispatcher:
         Returns:
             list ([robotId,...]): lista zawierajaca ID robotow, ktore blokuja POI.
         """
-        temp_blocked_pois = self.pois.get_raw_pois_list()
+        temp_blocked_pois = self.pois.get_raw_pois_dict()
         for robot in self.robots_plan.get_free_robots():
             poi_id = robot.task.get_poi_goal() if robot.task is not None else None
             if poi_id is not None:
@@ -1382,7 +1440,7 @@ class Dispatcher:
             robotsToPoi ({poiId: int, ...}): Slownik z liczba robotow dla ktorego kluczem jest ID POI z bazy
                 a wartoscia liczba robotow zmierzajaca/bedaca do danego POI
         """
-        robots_to_poi = self.pois.get_raw_pois_list()
+        robots_to_poi = self.pois.get_raw_pois_dict()
         for i in robots_to_poi:
             robots_to_poi[i] = 0
         all_robots = self.robots_plan.robots.values()
@@ -1399,7 +1457,7 @@ class Dispatcher:
              ({poi_id: wolne_sloty, ...}) : liczba wolnych slotow dla kazdego poi.
         """
         robots_using_poi = self.get_robots_using_pois()
-        max_robots_in_poi = self.planning_graph.get_max_allowed_robots_using_pois(self.pois.get_pois_type())
+        max_robots_in_poi = self.planning_graph.get_max_allowed_robots_using_pois()
         free_slots_in_poi = {}
         for poi_id in robots_using_poi:
             diff = max_robots_in_poi[poi_id] - robots_using_poi[poi_id]
@@ -1451,9 +1509,7 @@ class Dispatcher:
             for r_id in robots_id:
                 robot_node = self.robots_plan.get_robot_by_id(r_id).get_current_node()
                 target_node = self.get_undone_behaviour_node(task)
-                self.planning_graph.block_other_pois(robot_node, target_node)
-                task_time = nx.shortest_path_length(self.planning_graph.graph, source=robot_node, target=target_node,
-                                                    weight='planWeight')
+                task_time = self.planning_graph.get_path_length(robot_node, target_node)
                 if min_task_time is None or min_task_time > task_time:
                     fastest_robot_id = r_id
                     min_task_time = task_time
