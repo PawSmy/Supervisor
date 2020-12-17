@@ -178,8 +178,8 @@ class Task:
     def __init__(self, task_data):
         """
         Attributes:
-            task_data ({"id": int, "behaviours": [Behaviour, Behaviour, ...],
-                  "robotId": int, "timeAdded": time, "PRIORITY": Task.PRIORITY["..."]}): zadanie dla robota
+            task_data ({"id": string, "behaviours": [Behaviour, Behaviour, ...],
+                  "robotId": string, "timeAdded": time, "PRIORITY": Task.PRIORITY["..."]}): zadanie dla robota
         """
         self.validate_input(task_data)
         self.id = task_data[self.PARAM["ID"]]
@@ -238,6 +238,11 @@ class Task:
         return self.status != self.STATUS_LIST["TO_DO"]
 
     def validate_input(self, task_data):
+        """
+        Attributes:
+            task_data ({"id": string, "behaviours": [Behaviour, Behaviour, ...],
+                  "robotId": string, "timeAdded": time, "PRIORITY": Task.PRIORITY["..."]}): zadanie dla robota
+        """
         if type(task_data) != dict:
             raise WrongTaskInputData("Wrong task input data type.")
         task_keys = task_data.keys()
@@ -895,7 +900,7 @@ class PlanningGraph:
         Przekroczenie tej liczby oznacza, ze roboty moga zaczac sie kolejkowac na glownym szlaku komunikacyjnym.
 
         Returns:
-            ({poiId: int, poiId2: int,...}): Slownik z liczba robotow dla ktorego kluczem jest ID POI z bazy a
+            ({poiId: string, poiId2: string,...}): Slownik z liczba robotow dla ktorego kluczem jest ID POI z bazy a
             maksymalna liczba robotow jaka moze oczekiwac i byc obslugiwana przy stanowisku.
         """
         max_robot_pois = {i: 0 for i in self.pois}
@@ -1090,7 +1095,6 @@ class Dispatcher:
         TODO
             - wchodzi lokalizacja robota, jako edge moze wejsc id POI, które należy zastąpić odpowiednią krawędzią na
             której jest robot
-            - przekonwertowac dane z supervisora do odpowiedniego formatu zgodnego z atrybutem robots_tasks
         """
         self.planning_graph = PlanningGraph(graph_data)
         self.pois = PoisManager(graph_data)
@@ -1175,8 +1179,6 @@ class Dispatcher:
 
         Parameters:
             tasks ([Task, Task, ...]): lista posortowanych zadan dla robotow
-        TODO
-            jesli nastapi taka koniecznosc to przekonwertowac liste
         """
         self.unanalyzed_tasks_handler = TasksManager(tasks)
 
@@ -1395,7 +1397,7 @@ class Dispatcher:
         POI to rowniez jest uwzgledniana.
 
         Returns:
-            robotsToPoi ({poiId: int, ...}): Slownik z liczba robotow dla ktorego kluczem jest ID POI z bazy
+            robotsToPoi ({poiId: string, ...}): Slownik z liczba robotow dla ktorego kluczem jest ID POI z bazy
                 a wartoscia liczba robotow zmierzajaca/bedaca do danego POI
         """
         robots_to_poi = self.pois.get_raw_pois_dict()
@@ -1412,7 +1414,7 @@ class Dispatcher:
         """
             Funkcja zwraca liste dostepnych slotow dla kazdego z POI.
         Returns:
-             ({poi_id: wolne_sloty, ...}) : liczba wolnych slotow dla kazdego poi.
+             ({poi_id: int, ...}) : liczba wolnych slotow dla kazdego poi.
         """
         robots_using_poi = self.get_robots_using_pois()
         free_robots_in_poi = {poi: 0 for poi in self.pois.pois}
