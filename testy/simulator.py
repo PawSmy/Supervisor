@@ -1,11 +1,11 @@
 import graph_creator as gc
-from dispatcher import Dispatcher
 import networkx as nx
 import matplotlib.pyplot as plt
 import copy
+import dispatcher as disp
 
 
-class Robot:
+class Robot(disp.Robot):
     """
     Klasa przechowujaca informacje o pojedynczym robocie do ktorego beda przypisywane zadania
 
@@ -31,6 +31,10 @@ class Robot:
         self.planning_on = robot_data["planningOn"]
         self.is_free = robot_data["isFree"]
         self.time_remaining = robot_data["timeRemaining"]
+        self.task = None
+        self.next_task_edge = None
+        self.end_beh_edge = None
+
         self.beh_duration = 0
         self.beh_time = 0
         self.task_id = None
@@ -129,22 +133,21 @@ def convert_robots_state_to_dispatcher_format(robots_state_list):
          ({"id": int, "edge": (int, int), "planningOn": bool, "isFree": bool, "timeRemaining": float}):
                 slownik z danymi o robocie
     """
-    robotsList = []
+# "    robotsList = []
+#     for robot in robots_state_list:
+#         robotsList.append({"id": robot["id"], "isFree": robot["isFree"],
+#                            "edge": robot["edge"], "planningOn": robot["planningOn"],
+#                            "timeRemaining": robot["timeRemaining"]})
+#     return robotsList"
+    robots_dict = {}
     for robot in robots_state_list:
-        robotsList.append({"id": robot["id"], "isFree": robot["isFree"],
-                           "edge": robot["edge"], "planningOn": robot["planningOn"],
-                           "timeRemaining": robot["timeRemaining"]})
-    return robotsList
+        robots_dict[robot["id"]] = Robot({"id": robot["id"], "edge": robot["edge"], "planningOn": robot["planningOn"],
+                                          "isFree": robot["isFree"], "timeRemaining":  robot["timeRemaining"]})
+
+    return robots_dict
 
 
-class Task:
-    STATUS_LIST = {  # slownik wartosci nazw statusow zadania
-        "TO_DO": 'To Do',  # nowe zadanie, nie przypisane do robota
-        "IN_PROGRESS": "IN_PROGRESS",  # zadanie w trakcie wykonywania
-        "ASSIGN": "ASSIGN",  # zadanie przypisane, ale nie wykonywane. Oczekiwanie na potwierdzenie od robota
-        "DONE": "COMPLETED"  # zadanie zakonczone
-    }
-
+class Task(disp.Task):
     def __init__(self, task_data):
         """
         Attributes:
@@ -154,10 +157,12 @@ class Task:
         self.id = task_data["id"]
         self.robot_id = task_data["robot"]
         self.start_time = task_data["start_time"]
-        self.behaviours = task_data["behaviours"]
+        self.behaviours = [disp.Behaviour(raw_behaviour) for raw_behaviour in task_data[self.PARAM["BEHAVIOURS"]]]
+        self.behaviours_dict = task_data["behaviours"]
         self.curr_behaviour_id = task_data["current_behaviour_index"]
         self.status = task_data["status"]
         self.weight = task_data["weight"]
+        self.priority = task_data["priority"]
 
     def set_in_progress(self):
         self.status = self.STATUS_LIST["IN_PROGRESS"]
@@ -166,7 +171,7 @@ class Task:
         """
         Odpowiada za przypisanie kolejnego id zachowania do wykonania
         """
-        if self.curr_behaviour_id == (len(self.behaviours)-1):
+        if self.curr_behaviour_id == (len( self.behaviours_dict)-1):
             # zakonczono zadanie
             self.status = self.STATUS_LIST["DONE"]
         else:
@@ -174,14 +179,14 @@ class Task:
             self.curr_behaviour_id = self.curr_behaviour_id + 1
 
     def check_if_behaviour_is_go_to(self):
-        behaviour = self.behaviours[self.curr_behaviour_id]
+        behaviour =  self.behaviours_dict[self.curr_behaviour_id]
         is_go_to = "to" in behaviour["parameters"]
         return is_go_to
 
 
 class Supervisor:
-    def __init__(self, node_list, edge_list, tasks, robots_state_list):
-        self.graph = gc.SupervisorGraphCreator(node_list, edge_list)
+    def __init__(self, graph, tasks, robots_state_list):
+        self.graph = graph
         self.tasks = []
         self.add_tasks(tasks)
         self.plan = {}
@@ -194,21 +199,22 @@ class Supervisor:
                           "endBeh": bool, "planningOn": bool},...]) - stan robotow wychodzacy z symulatora
         """
 
-        dispatcher = Dispatcher(self.graph, convert_robots_state_to_dispatcher_format(robots_state_list))
+        dispatcher = disp.Dispatcher(self.graph, convert_robots_state_to_dispatcher_format(robots_state_list))
         self.update_robots_on_edge(robots_state_list)
         self.update_tasks_states(robots_state_list)
         robots = convert_robots_state_to_dispatcher_format(robots_state_list)
-        self.plan = dispatcher.get_plan_all_free_robots(self.graph, robots, self.get_task_for_dispatcher())
+        #self.plan = dispatcher.get_plan_all_free_robots(self.graph, robots, self.get_task_for_dispatcher())
+        self.plan = dispatcher.get_plan_all_free_robots(self.graph, robots, self.tasks)
         self.start_tasks()
 
-    # oK
-    def get_task_for_dispatcher(self):
-        tasks = []
-        for task in self.tasks:
-            tasks.append({"id": task.id, "current_behaviour_index": task.curr_behaviour_id, "robot": task.robot_id,
-                          "start_time": task.start_time, "status": task.status, "weight": task.weight,
-                          "behaviours": task.behaviours})
-        return tasks
+    # # oK
+    # def get_task_for_dispatcher(self):
+    #     tasks = []
+    #     for task in self.tasks:
+    #         tasks.append({"id": task.id, "current_behaviour_index": task.curr_behaviour_id, "robot": task.robot_id,
+    #                       "start_time": task.start_time, "status": task.status, "weight": task.weight,
+    #                       "behaviours": task.behaviours})
+    #     return tasks
 
     # OK
     def print_graph(self, plot_size=(45, 45)):
@@ -251,7 +257,8 @@ class Supervisor:
         Parameters:
             task_raw_data ({"id": string, "behaviours": [{"id": int,  "parameters":{"name": Behaviour.TYPES[nazwa_typu],
                 "to": "id_poi_string"},...], "robot": string, "start_time": "string_time",
-                "current_behaviour_index": "string_id",  "weight": float, "status": Task.STATUS_LIST[nazwa_statusu]}):
+                "current_behaviour_index": "string_id",  "weight": float, "status": Task.STATUS_LIST[nazwa_statusu],
+                 "priority": float}):
                 surowe dane o zadaniu
         """
         self.tasks.append(Task(task_raw_data))
@@ -263,7 +270,7 @@ class Supervisor:
             tasks_raw_data ([{"id": string, "behaviours": [{"id": int,  "parameters":
                 {"name": Behaviour.TYPES[nazwa_typu], "to": "id_poi_string"},...], "robot": string,
                 "start_time": "string_time", "current_behaviour_index": "string_id",  "weight": float,
-                 "status": Task.STATUS_LIST[nazwa_statusu]},...]): surowe dane o zadaniach
+                 "priority": float, "status": Task.STATUS_LIST[nazwa_statusu]},...]): surowe dane o zadaniach
         """
         for task in tasks_raw_data:
             self.add_task(task)
@@ -347,7 +354,7 @@ class Supervisor:
         for task in self.tasks:
             header = "{} {} {} ".format("id", "name", "goalId")
             data = []
-            for behaviour in task.behaviours:
+            for behaviour in task.behaviours_dict:
                 if "to" in behaviour["parameters"]:
                     data.append("{:<83} {:<3} {:<6} {}".format("", str(behaviour["id"]),
                                                                str(behaviour["parameters"]["name"]),
