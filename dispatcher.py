@@ -1554,7 +1554,7 @@ class Dispatcher:
             goalNode = self.planning_graph.get_end_go_to_node(poi_id, self.pois.get_type(poi_id))
         elif behaviour.get_type() == Behaviour.TYPES["dock"]:
             goalNode = self.planning_graph.get_end_docking_node(poi_id)
-        elif behaviour.get_type() == Behaviour.TYPES["wait"]:
+        elif behaviour.get_type() == Behaviour.TYPES["wait"] or behaviour.get_type() == Behaviour.TYPES["bat_ex"]:
             goalNode = self.planning_graph.get_end_wait_node(poi_id, self.pois.get_type(poi_id))
         elif behaviour.get_type() == Behaviour.TYPES["undock"]:
             goalNode = self.planning_graph.get_end_undocking_node(poi_id)
