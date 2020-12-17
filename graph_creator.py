@@ -628,21 +628,21 @@ class SupervisorGraphCreator(DataConverter):
                                 color=node_color["dock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
                                 behaviour=Behaviour.TYPES["dock"], robots=[],
-                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0], robots=[])
+                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["wait"], sourceNode=node_id,
                                 color=node_color["wait"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
                                 behaviour=Behaviour.TYPES["wait"], robots=[],
-                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0], robots=[])
+                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["undock"], sourceNode=node_id,
                                 color=node_color["undock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
                                 behaviour=Behaviour.TYPES["undock"], robots=[],
-                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0], robots=[])
+                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["end"], sourceNode=node_id,
@@ -657,7 +657,7 @@ class SupervisorGraphCreator(DataConverter):
                                 color=node_color["wait"], poiId=no_dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
                                 behaviour=Behaviour.TYPES["wait"], robots=[],
-                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0], robots=[])
+                                edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
 
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["end"], sourceNode=node_id,
