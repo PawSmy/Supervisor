@@ -190,7 +190,7 @@ class Task:
                   "robotId": string, "start_time": time, "priority": int, "status": STATUS_LIST[status},
                   "weight": int): zadanie dla robota
         """
-        self.validate_input(task_data)
+        # self.validate_input(task_data)
         self.id = task_data[self.PARAM["ID"]]
         self.robot_id = task_data[self.PARAM["ROBOT_ID"]]
         self.start_time = task_data[self.PARAM["START_TIME"]]
@@ -450,7 +450,7 @@ class Robot:
             robot_data ({"id": string, "edge": (string, string), "planningOn": bool, "isFree": bool,
                          "timeRemaining": float/None}): slownik z danymi o robocie
         """
-        self.validate_input(robot_data)
+        #self.validate_input(robot_data)
         self.id = robot_data["id"]
         self.edge = robot_data["edge"]
         self.poi_id = robot_data["poiId"]
@@ -585,7 +585,7 @@ class RobotsPlanManager:
                     # krawedzi, jesli nie jest ona znana dla danego robota.
                     # TODO weryfikacja czy dla danego poi istnieje krawedz na grafie, istnieje w podanym slowniku
                     # wejsciowym
-                    print("robot edge/poi id: ", robot.edge, robot.poi_id)
+                    #print("robot edge/poi id: ", robot.edge, robot.poi_id)
                     robot.edge = base_poi_edges[robot.poi_id]
                 self.robots[robot.id] = robot
 
@@ -1158,15 +1158,15 @@ class Dispatcher:
              ktory moze zostac od razu zrealizowany, gdyz nie ma kolizji, w preciwnym wypadku None
         """
         self.planning_graph = PlanningGraph(graph_data)
-        print("tasks len: ", str(len(tasks)))
+        # print("tasks len: ", str(len(tasks)))
         #for task in tasks:
         #    task.print_info()
         self.set_plan(robots, tasks)
 
         given_robot = self.robots_plan.get_robot_by_id(robot_id)
-        print("robot")
-        print(given_robot.task.id)
-        print(given_robot.next_task_edge)
+        # print("robot")
+        # print(given_robot.task.id)
+        # print(given_robot.next_task_edge)
         if given_robot.next_task_edge is None:
             return None
         else:
