@@ -172,7 +172,8 @@ class Task:
         # zachowania po id
         "STATUS": "status",  # nazwa pola zawierajacego status zadania
         "WEIGHT": "weight",  # nazwa pola odnoszacego sie do wagi zadania
-        "BEHAVIOURS": "behaviours"  # nazwa pola odnoszaca sie do listy zachowan w zadaniu
+        "BEHAVIOURS": "behaviours",  # nazwa pola odnoszaca sie do listy zachowan w zadaniu
+        "PRIORITY": "priority"  # priorytet zadania
     }
 
     STATUS_LIST = {  # slownik wartosci nazw statusow zadania
@@ -186,7 +187,8 @@ class Task:
         """
         Attributes:
             task_data ({"id": string, "behaviours": [Behaviour, Behaviour, ...],
-                  "robotId": string, "timeAdded": time, "PRIORITY": Task.PRIORITY["..."]}): zadanie dla robota
+                  "robotId": string, "start_time": time, "priority": int, "status": STATUS_LIST[status},
+                  "weight": int): zadanie dla robota
         """
         self.validate_input(task_data)
         self.id = task_data[self.PARAM["ID"]]
@@ -194,6 +196,7 @@ class Task:
         self.start_time = task_data[self.PARAM["START_TIME"]]
         self.status = task_data[self.PARAM["STATUS"]]
         self.weight = task_data[self.PARAM["WEIGHT"]]
+        self.priority = 3 if self.PARAM["PRIORITY"] not in task_data else task_data[self.PARAM["PRIORITY"]]
         self.index = 0
         self.curr_behaviour_id = task_data[self.PARAM["CURRENT_BEH_ID"]]  # dla statusu done kolejne zachowania
         # jesli zadanie ma inny status to wartosc tyczy sie aktualnie wykonywanego zachowania
@@ -364,7 +367,7 @@ class TasksManager:
         Parameters:
           tasks ([Task, Task, ...) - lista zadan dla robotow
         """
-        self.tasks = tasks
+        self.tasks = []
         self.set_tasks(tasks)
 
     def set_tasks(self, tasks):
@@ -381,8 +384,10 @@ class TasksManager:
         max_priority_value = 0
         all_tasks = copy.deepcopy(tasks)
         for i, task in enumerate(all_tasks):
+            task.weight = task.priority
             max_priority_value = task.weight if task.weight > max_priority_value else max_priority_value
             task.index = i + 1
+
 
         # odwrocenie wynika pozniej z funkcji sortujacej, zadanie o najwyzszym priorytecie powinno miec
         # najnizsza wartosc liczbowa
