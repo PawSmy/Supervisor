@@ -585,8 +585,8 @@ class RobotsPlanManager:
                     # krawedzi, jesli nie jest ona znana dla danego robota.
                     # TODO weryfikacja czy dla danego poi istnieje krawedz na grafie, istnieje w podanym slowniku
                     # wejsciowym
-                    print("robot edge/poi id: ", robot.edge)
-                    robot.edge = base_poi_edges[robot.edge]
+                    print("robot edge/poi id: ", robot.edge, robot.poi_id)
+                    robot.edge = base_poi_edges[robot.poi_id]
                 self.robots[robot.id] = robot
 
     def get_robot_by_id(self, robot_id):
