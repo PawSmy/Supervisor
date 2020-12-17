@@ -364,9 +364,8 @@ class TasksManager:
         Parameters:
           tasks ([Task, Task, ...) - lista zadan dla robotow
         """
-        self.tasks = []
         self.tasks = tasks
-        # self.set_tasks(tasks)
+        self.set_tasks(tasks)
 
     def set_tasks(self, tasks):
         """
@@ -391,7 +390,7 @@ class TasksManager:
             task.weight = max_priority_value - task.weight
 
         # sortowanie zadan po priorytetach i czasie zgłoszenia
-        tasks_id = [task.id for task in sorted(all_tasks, key=lambda
+        tasks_id = [data.id for data in sorted(all_tasks, key=lambda
                     task_data:(task_data.weight, task_data.index), reverse=False)]
 
         self.tasks = []
@@ -572,6 +571,7 @@ class RobotsPlanManager:
             base_poi_edges ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
                 przypisac robota, jesli jest on w POI
         """
+        self.robots = {}
         for i in robots:
             robot = robots[i]
             if robot.planning_on:
