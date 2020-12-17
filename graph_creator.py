@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import networkx as nx
 import numpy as np
 import copy
@@ -9,7 +10,7 @@ from shapely.geometry import LineString
 from shapely.ops import unary_union
 from dispatcher import Behaviour
 
-corridor_width = 0.3  # 1 szerokosc korytarza dla pojedynczego robota
+corridor_width = 0.5  # 1 szerokosc korytarza dla pojedynczego robota
 robot_length = 0.4  # 0.6
 docking_time_weight = 20
 undocking_time_weight = 20
@@ -92,7 +93,7 @@ def convert_database_nodes(source_nodes):
     converted_nodes = {}
     for node in database_nodes:
         converted_nodes[node["id"]] = {"name": node["name"], "pos": (node["posX"], node["posY"]),
-                                       "type": node["type"], "poiID": node["poiID"]}
+                                       "type": node["type"], "poiId": node["poiID"]}
     return converted_nodes
 
 
@@ -626,21 +627,21 @@ class SupervisorGraphCreator(DataConverter):
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["dock"], sourceNode=node_id,
                                 color=node_color["dock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour=Behaviour.TYPES["dock"],
+                                behaviour=Behaviour.TYPES["dock"], robots=[],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["wait"], sourceNode=node_id,
                                 color=node_color["wait"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour=Behaviour.TYPES["wait"],
+                                behaviour=Behaviour.TYPES["wait"], robots=[],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["undock"], sourceNode=node_id,
                                 color=node_color["undock"], poiId=dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour=Behaviour.TYPES["undock"],
+                                behaviour=Behaviour.TYPES["undock"], robots=[],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
             self.edge_id = self.edge_id + 1
@@ -655,7 +656,7 @@ class SupervisorGraphCreator(DataConverter):
             self.graph.add_node(self.graph_node_id, nodeType=new_node_type["wait"], sourceNode=node_id,
                                 color=node_color["wait"], poiId=no_dock_node[1]["poiId"])
             self.graph.add_edge(self.graph_node_id, self.graph_node_id + 1, id=self.edge_id, weight=0,
-                                behaviour=Behaviour.TYPES["wait"],
+                                behaviour=Behaviour.TYPES["wait"], robots=[],
                                 edgeGroupId=self.group_id_switcher[node_id], sourceNodes=[node_id], sourceEdges=[0])
             self.graph_node_id = self.graph_node_id + 1
 
@@ -688,7 +689,7 @@ class SupervisorGraphCreator(DataConverter):
                 self.graph.add_edge(self.graph_node_id - 1, self.graph_node_id, id=self.edge_id, weight=0,
                                     behaviour=Behaviour.TYPES["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
-                                    sourceEdges=combined_edges[i]["sourceEdges"])
+                                    sourceEdges=combined_edges[i]["sourceEdges"], robots=[])
                 self.graph_node_id = self.graph_node_id + 1
                 self.edge_id = self.edge_id + 1
             elif self.source_nodes[source_node_id[-1]]["type"]["nodeSection"] == base_node_section_type[
@@ -704,7 +705,7 @@ class SupervisorGraphCreator(DataConverter):
                                     behaviour=Behaviour.TYPES["goto"],
                                     edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
-                                    sourceEdges=combined_edges[i]["sourceEdges"])
+                                    sourceEdges=combined_edges[i]["sourceEdges"], robots=[])
                 self.edge_id = self.edge_id + 1
             elif self.source_nodes[source_node_id[0]]["type"]["nodeSection"] == base_node_section_type["intersection"] \
                     and self.source_nodes[source_node_id[-1]]["type"]["nodeSection"] != base_node_section_type[
@@ -718,7 +719,7 @@ class SupervisorGraphCreator(DataConverter):
                                     behaviour=Behaviour.TYPES["goto"],
                                     edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
-                                    sourceEdges=combined_edges[i]["sourceEdges"])
+                                    sourceEdges=combined_edges[i]["sourceEdges"], robots=[])
                 self.edge_id = self.edge_id + 1
             else:
                 start_node_id = self.get_connected_graph_node_id(source_node_id[0])
@@ -726,7 +727,7 @@ class SupervisorGraphCreator(DataConverter):
                 self.graph.add_edge(start_node_id, end_node_id, id=self.edge_id, weight=0,
                                     behaviour=Behaviour.TYPES["goto"], edgeGroupId=combined_edges[i]["edgeGroupId"],
                                     wayType=combined_edges[i]["wayType"], sourceNodes=source_node_id,
-                                    sourceEdges=combined_edges[i]["sourceEdges"])
+                                    sourceEdges=combined_edges[i]["sourceEdges"], robots=[])
                 self.edge_id = self.edge_id + 1
 
     def get_connected_graph_node_id(self, source_node_id, edge_start_node=True):
@@ -788,7 +789,7 @@ class SupervisorGraphCreator(DataConverter):
                 for edge in all_combinations:
                     self.graph.add_edge(edge[0], edge[1], id=self.edge_id, weight=0, behaviour=Behaviour.TYPES["goto"],
                                         edgeGroupId=group_id, wayType=way_type["oneWay"],
-                                        sourceNodes=[i], sourceEdges=[0])
+                                        sourceNodes=[i], sourceEdges=[0], robots=[])
                     self.edge_id = self.edge_id + 1
                 if not wait_dep_intersection:
                     self.edge_group_id = self.edge_group_id + 1
@@ -1191,7 +1192,7 @@ class SupervisorGraphCreator(DataConverter):
             self.graph.nodes[i]["pose"] = self.get_ros_pose_msg(start_pos, end_pos, node_pos)
 
         for node in self.graph.nodes(data=True):
-            if "pose" not in node[1] and node[1]["poiId"] != 0 :
+            if "pose" not in node[1] and node[1]["poiId"] != 0:
                 poi_pose = [poi["pose"] for poi in pois_raw_data if poi["id"] == node[1]["poiId"]][0]
                 self.graph.nodes[node[0]]["pose"] = poi_pose
 
