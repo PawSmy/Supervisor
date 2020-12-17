@@ -228,19 +228,6 @@ class Task:
         """
         return self.behaviours[0] if self.curr_behaviour_id == -1 else self.behaviours[self.curr_behaviour_id]
 
-    # def get_task_first_goal(self):
-    #     """
-    #     Dla zadania zwracane jest pierwsze POI do ktorego ma dojechac robot w ramach podanego zadania.
-    #
-    #     Returns:
-    #         (string): id POI z bazy, jesli dla zadania nie zostanie znalezione zadne zachowanine GO TO
-    #                       zwracana jest wartosc None
-    #     """
-    #     for behaviour in self.behaviours:
-    #         if behaviour.check_if_go_to():
-    #             return behaviour.get_poi()
-    #     return None
-
     def check_if_task_started(self):
         """
         Sprawdza czy dane zadanie zostalo rozpoczete.
@@ -507,7 +494,7 @@ class Robot:
     def get_current_node(self):
         """
         Returns:
-             (int): wezel w ktorym znajduje sie robot lub znajdzie po zakonczeniu zachowania
+             (string): wezel w ktorym znajduje sie robot lub znajdzie po zakonczeniu zachowania
         """
         return None if self.edge is None else self.edge[1]
 
@@ -739,7 +726,7 @@ class PoisManager:
         """
         for i in graph.source_nodes:
             node = graph.source_nodes[i]
-            if node["poiId"] != 0:  # TODO zweryfikowac wartosc dla wezla bez POI
+            if node["poiId"] != "0":  # TODO zweryfikowac wartosc dla wezla bez POI
                 self.pois[node["poiId"]] = node["type"]
 
     def check_if_queue(self, poi_id):
@@ -782,29 +769,6 @@ class PoisManager:
             raise PoisManagerError("Poi id '{}' doesn't exist".format(poi_id))
         return self.pois[poi_id]
 
-    # def get_pois_type(self):
-    #     """
-    #     Zwraca liste z typami wszystkich POI
-    #
-    #     Returns:
-    #         ({poi_id: {"type": gc.base_node_type[]}, ...): lista POI wraz z typami
-    #     """
-    #     # pois_list = {}
-    #     # for poi_id in self.pois:
-    #     #     pois_list[poi_id] = {"type": self.pois[poi_id]["type"]}
-    #     # return pois_list
-
-    # def get_pois_id(self):
-    #     """
-    #     Zwraca liste z ID wszystkich POI polaczonych z grafem
-    #     Returns:
-    #          (list): lista z id POI
-    #     """
-    #     poi_list = []
-    #     for poi_id in self.pois.keys():
-    #         poi_list.append(poi_id)
-    #     return poi_list
-
 
 class PlanningGraph:
     """
@@ -820,16 +784,6 @@ class PlanningGraph:
         """
         self.graph = copy.deepcopy(graph.graph)
         self.pois = PoisManager(graph).pois
-        # self.extend_graph()
-
-    # def extend_graph(self):
-    #     """
-    #     Wprowadzenie dodatkowego parametru na krawedzi zawierajacego id robotow oraz wage do planowania, ktora
-    #     sie dynamicznie zmienia i blokuje mozliwosc planowania przez inne POI.
-    #     """
-    #     for edge in self.graph.edges(data=True):
-    #         self.graph.edges[edge[0], edge[1]]["robots"] = []
-    #         self.graph.edges[edge[0], edge[1]]["planWeight"] = self.graph.edges[edge[0], edge[1]]["weight"]
 
     def block_other_pois(self, robot_node, target_node):
         """
@@ -842,7 +796,7 @@ class PlanningGraph:
 
         # TODO do przerobki lista nieblokujacych POI, zamiast 0 ma byc wartosc dla krawedzi niezwiazanych z POI np None
         """
-        no_block_poi_ids = [0, self.graph.nodes[robot_node]["poiId"], self.graph.nodes[target_node]["poiId"]]
+        no_block_poi_ids = ["0", self.graph.nodes[robot_node]["poiId"], self.graph.nodes[target_node]["poiId"]]
         for edge in self.graph.edges(data=True):
             start_node_poi_id = self.graph.nodes[edge[0]]["poiId"]
             end_node_poi_id = self.graph.nodes[edge[1]]["poiId"]
@@ -973,7 +927,7 @@ class PlanningGraph:
             edge((string,string)): krawedz grafu
 
         Returns:
-            (string): id grupy krawedzi, 0 dla krawedzi nie wchodzacych w sklad grupy
+            (int): id grupy krawedzi, 0 dla krawedzi nie wchodzacych w sklad grupy
         """
         return self.graph.edges[edge]["edgeGroupId"]
 
@@ -1040,7 +994,7 @@ class PlanningGraph:
             (string): zwraca id poi, jesli krawedz zwiazana jest z POI, jesli nie to None
         """
         poi_node = self.graph.nodes[edge[1]]['poiId']
-        if poi_node != 0:  # TODO weryfikacja dla jakich wartosci poi node wezel nie ma poi None czy "0"
+        if poi_node != "0":  # TODO weryfikacja dla jakich wartosci poi node wezel nie ma poi None czy "0"
             return poi_node
         else:
             return None
@@ -1102,7 +1056,7 @@ class PlanningGraph:
             elif len(poi_nodes) == 2:
                 # poi bez dokowania
                 start_node = [node for node in poi_nodes
-                            if self.graph.nodes[node]["nodeType"] == gc.new_node_type["wait"]]
+                              if self.graph.nodes[node]["nodeType"] == gc.new_node_type["wait"]]
                 end_node = [node for node in poi_nodes if self.graph.nodes[node]["nodeType"] == gc.new_node_type["end"]]
                 base_poi_edges[poi_id] = (start_node[0], end_node[0])
             else:
@@ -1131,8 +1085,7 @@ class Dispatcher:
 
         Parameters:
             graph_data (SupervisorGraphCreator): wygenerwany rozszerzony graf do planowania kolejnych zachowan robotow
-            robots ([{"id": string, "edge": (int, int), "planningOn": bool, "isFree": bool, "timeRemaining": float}
-                ,...]): lista z danymi o robocie
+            robots ({"id": Robot, "id": Robot, ...}): slownik z lista robotow do ktorych beda przypisywane zadania
 
         TODO
             - wchodzi lokalizacja robota, jako edge moze wejsc id POI, które należy zastąpić odpowiednią krawędzią na
@@ -1142,8 +1095,7 @@ class Dispatcher:
         self.planning_graph = PlanningGraph(graph_data)
         self.pois = PoisManager(graph_data)
 
-        base_poi_edges = self.planning_graph.get_base_pois_edges()
-        self.robots_plan = RobotsPlanManager(robots, base_poi_edges)
+        self.robots_plan = RobotsPlanManager(robots, self.planning_graph.get_base_pois_edges())
         self.init_robots_plan(robots)
 
         self.unanalyzed_tasks_handler = None
@@ -1154,16 +1106,13 @@ class Dispatcher:
 
         Parameters:
             graph_data (SupervisorGraphCreator): wygenerwany rozszerzony graf do planowania kolejnych zachowan robotow
-            robots ([{"id": string, "edge": (int, int), "planningOn": bool, "isFree": bool, "timeRemaining": float}
-                ,...]): lista z danymi o robocie
-            tasks ([{"id": string, "behaviours": [{"id": int,  "parameters": {"name": Behaviour.TYPES[nazwa_typu],
-                "to": "id_poi_string"},...], "robot": string, "start_time": "string_time",
-                "current_behaviour_index": "string_id",  "weight": float, "status": Task.STATUS_LIST[nazwa_statusu]},
-                 ...]) - lista zadan dla robotow
+            robots ({"id": Robot, "id": Robot, ...}): slownik z lista robotow do ktorych beda przypisywane zadania
+            tasks ([Task, Task, ...]): lista posortowanych zadan dla robotow
 
         Returns:
-             ({robotId": {"taskId": int, "nextEdge": (int,int), "endBeh": boolean},...})
-              - plan dla robotow, ktory moze zostac od razu zrealizowany, gdyz nie ma kolizji
+             ({robotId: {"taskId": string, "nextEdge": (string,string)/None, "endBeh": boolean/None},...})
+              - plan dla robotow, ktory moze zostac od razu zrealizowany, gdyz nie ma kolizji; jesli niemożliwe jest
+                zlecenie kolejnej krawedzi, bo jest zablokowana to None
         """
         self.planning_graph = PlanningGraph(graph_data)
         self.set_plan(robots, tasks)
@@ -1181,17 +1130,13 @@ class Dispatcher:
         wykonane
         Parameters:
             graph_data (SupervisorGraphCreator): wygenerwany rozszerzony graf do planowania kolejnych zachowan robotow
-            robots ([{"id": string, "edge": (int, int), "planningOn": bool, "isFree": bool, "timeRemaining": float}
-                ,...]): lista z danymi o robocie
-            tasks ([{"id": string, "behaviours": [{"id": int,  "parameters": {"name": Behaviour.TYPES[nazwa_typu],
-                "to": "id_poi_string"},...], "robot": string, "start_time": "string_time",
-                "current_behaviour_index": "string_id",  "weight": float, "status": Task.STATUS_LIST[nazwa_statusu]},
-                 ...]) - lista zadan dla robotow
+            robots ({"id": Robot, "id": Robot, ...}): slownik z lista robotow do ktorych beda przypisywane zadania
+            tasks ([Task, Task, ...]): lista posortowanych zadan dla robotow
             robot_id (string): id robota dla ktorego ma byc zwrocony plan
 
         Returns:
-             ({"taskId": int, "nextEdge": (int,int), "endBeh": boolean},...}): plan dla robotow, ktory moze zostac
-             od razu zrealizowany, gdyz nie ma kolizji, w preciwnym wypadku None
+             ({"taskId": string, "nextEdge": (string,string)/None, "endBeh": boolean/None},...}): plan dla robotow,
+             ktory moze zostac od razu zrealizowany, gdyz nie ma kolizji, w preciwnym wypadku None
         """
         self.planning_graph = PlanningGraph(graph_data)
         self.set_plan(robots, tasks)
@@ -1207,12 +1152,8 @@ class Dispatcher:
         Ustawia plan dla robotow.
 
         Parameters:
-            robots ([{"id": string, "edge": (int, int), "planningOn": bool, "isFree": bool, "timeRemaining": float}
-                ,...]): lista z danymi o robocie
-            tasks ([{"id": string, "behaviours": [{"id": int,  "parameters": {"name": Behaviour.TYPES[nazwa_typu],
-                "to": "id_poi_string"},...], "robot": string, "start_time": "string_time",
-                "current_behaviour_index": "string_id",  "weight": float, "status": Task.STATUS_LIST[nazwa_statusu]},
-                 ...]) - lista zadan dla robotow
+            robots ({"id": Robot, "id": Robot, ...}): slownik z lista robotow do ktorych beda przypisywane zadania
+            tasks ([Task, Task, ...]): lista posortowanych zadan dla robotow
         """
         self.set_tasks(tasks)
         self.init_robots_plan(robots)
@@ -1224,21 +1165,16 @@ class Dispatcher:
         """Ustawia roboty aktywnie dzialajace w systemie tzn. podlegajace planowaniu i przydzielaniu zadan.
 
         Parameters:
-            robots ([{"id": string, "edge": (int, int), "planningOn": bool, "isFree": bool, "timeRemaining": float}
-                ,...]): lista z danymi o robocie
+            robots ({"id": Robot, "id": Robot, ...}): slownik z lista robotow do ktorych beda przypisywane zadania
         """
-        base_poi_edges = self.planning_graph.get_base_pois_edges()
-        self.robots_plan = RobotsPlanManager(robots, base_poi_edges)
+        self.robots_plan = RobotsPlanManager(robots, self.planning_graph.get_base_pois_edges())
 
     def set_tasks(self, tasks):
         """
         Ustawia menadzera nieprzeanalizowanych zadan w ramach planowania.
 
         Parameters:
-        tasks ([{"id": string, "behaviours": [{"id": int,  "parameters": {"name": Behaviour.TYPES[nazwa_typu],
-                "to": "id_poi_string"},...], "robot": string, "start_time": "string_time",
-                "current_behaviour_index": "string_id",  "weight": float, "status": Task.STATUS_LIST[nazwa_statusu]},
-                 ...]) - lista zadan dla robotow
+            tasks ([Task, Task, ...]): lista posortowanych zadan dla robotow
         TODO
             jesli nastapi taka koniecznosc to przekonwertowac liste
         """
@@ -1248,14 +1184,27 @@ class Dispatcher:
         """
         Przypisanie zadan do robotow, ktore aktualnie pracuja i usuniecie ich z listy zadan do przeanalizowania.
         """
+        # przypisanie zadan z POI w których aktualnie jest robot
         tasks_id_to_remove = []
-        # przypisanie zadan z POI do ktorych aktualnie jedzie robot lub w ktorych wykonuje akcje
         for unanalyzed_task in self.unanalyzed_tasks_handler.tasks:
+            current_behaviour_is_goto = unanalyzed_task.get_current_behaviour().check_if_go_to()
+            task_started = unanalyzed_task.check_if_task_started()
+            for robot in self.robots_plan.get_free_robots():
+                if robot.id == unanalyzed_task.robot_id and task_started and not current_behaviour_is_goto:
+                    self.robots_plan.set_task(robot.id, unanalyzed_task)
+                    self.set_task_edge(robot.id)
+                    tasks_id_to_remove.append(unanalyzed_task.id)
+        self.unanalyzed_tasks_handler.remove_tasks_by_id(tasks_id_to_remove)
+
+        # przypisanie zadan z POI do ktorych aktualnie jedzie robot
+        tasks_id_to_remove = []
+        for unanalyzed_task in self.unanalyzed_tasks_handler.tasks:
+            current_behaviour_is_goto = unanalyzed_task.get_current_behaviour().check_if_go_to()
             task_poi_goal = unanalyzed_task.get_poi_goal()
             task_started = unanalyzed_task.check_if_task_started()
             for robot in self.robots_plan.get_free_robots():
                 robot_poi = self.planning_graph.get_poi(robot.edge)
-                if (robot.id == unanalyzed_task.robot_id and task_started)\
+                if (robot.id == unanalyzed_task.robot_id and task_started and current_behaviour_is_goto)\
                         and (robot_poi == task_poi_goal or robot_poi is None):
                     self.robots_plan.set_task(robot.id, unanalyzed_task)
                     self.set_task_edge(robot.id)
@@ -1273,7 +1222,7 @@ class Dispatcher:
                 robot_poi = self.planning_graph.get_poi(robot.edge)
                 if robot.id == unanalyzed_task.robot_id and task_started and robot_poi != task_poi_goal:
                     self.robots_plan.set_task(robot.id, unanalyzed_task)
-                    if free_slots_in_poi[task_poi_goal] > 0 and not self.check_if_goal_is_blocked(task_poi_goal):
+                    if free_slots_in_poi[task_poi_goal] > 0:
                         free_slots_in_poi[task_poi_goal] = free_slots_in_poi[task_poi_goal] - 1
                         self.set_task_edge(robot.id)
                     tasks_id_to_remove.append(unanalyzed_task.id)
@@ -1342,7 +1291,7 @@ class Dispatcher:
 
     def set_task_edge(self, robot_id):
         """
-        Ustawia kolejna krawedz przejscia dla wolnych robotow.
+        Ustawia kolejna krawedz przejscia dla robota o danym id.
 
         Parameters:
             robot_id (string): id robota dla ktorego ma zostac dokonana aktualizacja przejscia po krawedzi
@@ -1351,43 +1300,61 @@ class Dispatcher:
         if robot.planning_on and robot.is_free:
             # robot wykonal fragment zachowania lub ma przydzielone zupelnie nowe zadanie
             # weryfikacja czy kolejna akcja jazdy krawedzia moze zostac wykonana
-            # 1. pobranie kolejnej krawedzi ktora ma poruszac sie robot
-            end_node = self.get_undone_behaviour_node(robot.task)
-            assert robot.get_current_node != end_node, "Robot finished behaviour in task, but behaviour doesn't have " \
-                                                       "done status or invalid node found."
             start_node = robot.get_current_node()
+            end_node = self.get_undone_behaviour_node(robot.task)
             path_nodes = self.planning_graph.get_path(start_node, end_node)
-
             next_edge = (path_nodes[0], path_nodes[1])
 
-            # 2. sprawdzenie czy krawedz nalezy do grupy krawedzi na ktorej moze byc tylko 1 robot
-            group_id = self.planning_graph.get_group_id(next_edge)
-            robots_in_group_edge = self.planning_graph.get_robots_in_group_edge(next_edge)
-            if group_id != 0:
+            next_group_id = self.planning_graph.get_group_id(next_edge)
 
-                group_edges = self.planning_graph.get_edges_by_group(group_id)
+            base_poi_edges = self.planning_graph.get_base_pois_edges()
+            poi_id = robot.task.get_poi_goal()
+            poi_group_id = self.planning_graph.get_group_id(base_poi_edges[poi_id])
+            robot_current_group_id = self.planning_graph.get_group_id(robot.edge)
+            poi_group_ids = [self.planning_graph.get_group_id(poi_edge) for poi_edge in base_poi_edges.values()]
+            # dostepnosc kolejnego POI
+            free_robots_in_poi = []
+            for free_robot in self.robots_plan.get_free_robots():
+                poi = self.planning_graph.get_poi(free_robot.edge)
+                if poi is not None:
+                    if not self.pois.check_if_queue(poi) and poi == poi_id:
+                        free_robots_in_poi.append(free_robot.id)
+
+            robots_using_poi = free_robots_in_poi
+            current_goals = self.robots_plan.get_current_robots_goals()
+            max_robots = self.planning_graph.get_max_allowed_robots_using_pois()[poi_id]
+            for r_id in current_goals:
+                if poi_id == current_goals[r_id]:
+                    robots_using_poi.append(r_id)
+            robots_using_poi = np.unique(robots_using_poi)
+            free_slots = self.get_free_slots_in_pois()[poi_id]
+            poi_availability = free_slots > 0 or poi_group_id == robot_current_group_id \
+                               or robot_current_group_id not in poi_group_ids  \
+                               or (len(robots_using_poi) <= max_robots and robot_id in robots_using_poi)
+
+            if next_group_id != 0:
+                group_edges = self.planning_graph.get_edges_by_group(next_group_id)
                 planned_robots_ids = self.robots_plan.get_robots_id_on_given_edges(group_edges)
                 future_planed_robots_id = self.robots_plan.get_robots_id_on_future_edges(group_edges)
-
+                robots_in_group_edge = self.planning_graph.get_robots_in_group_edge(next_edge)
                 robots_ids = [i for i in np.unique(robots_in_group_edge + planned_robots_ids + future_planed_robots_id)]
                 if robot.id in robots_ids:
                     robots_ids.remove(robot.id)
                 edge_is_available = 0 == len(robots_ids)
             else:
                 # krawedz nie nalezy do grupy
-                # 3. sprawdzenie ile aktualnie robotow porusza sie dana krawedzia
-                n_robots_on_edge = len(robots_in_group_edge)
-                # 4. sprawdzenie ile robotow ze statusem isFree ma juz przypisana ta krawedz
-                n_assigned_robots_on_edge = len(self.robots_plan.get_robots_id_on_given_edges([next_edge]) +
-                                                self.robots_plan.get_robots_id_on_future_edges([next_edge]))
-                # 5. pobranie maksymalnej liczby robotow i sprawdzenie czy ta liczba jest wieksza niz suma robotow
-                # z punktu 2 i 3. jesli liczba jest mniejsza to ta krawedz jest przypisana
-                max_robots = self.planning_graph.get_max_allowed_robots(next_edge)
-                edge_is_available = max_robots > (n_robots_on_edge + n_assigned_robots_on_edge)
+                # warunek na sprawdzenie dostepnosci kolejnej krawedzi
+                current_robots_ids = self.robots_plan.get_robots_id_on_given_edges([next_edge])
+                future_planed_robots_id = self.robots_plan.get_robots_id_on_future_edges([next_edge])
+                robots_ids = [i for i in np.unique(current_robots_ids + future_planed_robots_id)]
+                if robot.id in robots_ids:
+                    robots_ids.remove(robot.id)
+                edge_is_available = self.planning_graph.get_max_allowed_robots(next_edge) > len(robots_ids)
 
-            if edge_is_available:
+            if edge_is_available and poi_availability:
                 # jesli krawedz konczy dane zachowanie to ustawiany jest parametr endBehEdge na True
                 undone_behaviour = robot.task.get_current_behaviour()
+                self.robots_plan.set_next_edge(robot_id, next_edge)
                 if undone_behaviour.get_type() != Behaviour.TYPES["goto"]:  # dock,wait,undock -> pojedyncze przejscie
                     # na grafie
                     self.robots_plan.set_end_beh_edge(robot_id, True)
@@ -1395,7 +1362,6 @@ class Dispatcher:
                     self.robots_plan.set_end_beh_edge(robot_id, True)
                 else:
                     self.robots_plan.set_end_beh_edge(robot_id, False)
-                self.robots_plan.set_next_edge(robot_id, next_edge)
 
     def get_robots_id_blocking_poi(self):
         """
@@ -1406,9 +1372,9 @@ class Dispatcher:
         """
         temp_blocked_pois = self.pois.get_raw_pois_dict()
         for robot in self.robots_plan.get_free_robots():
-            poi_id = robot.task.get_poi_goal() if robot.task is not None else None
+            poi_id = self.planning_graph.get_poi(robot.edge)
             if poi_id is not None:
-                if self.pois.check_if_queue(poi_id):
+                if not self.pois.check_if_queue(poi_id):
                     if temp_blocked_pois[poi_id] is None:
                         temp_blocked_pois[poi_id] = []
                     temp_blocked_pois[poi_id] = temp_blocked_pois[poi_id] + [robot.id]
@@ -1421,14 +1387,6 @@ class Dispatcher:
                 blocking_robots = blocking_robots + temp_blocked_pois[poi_id]
         # zwracana jest lista robotów, które blokują POI do których aktualnie jadą roboty
         return blocking_robots
-
-    def check_if_goal_is_blocked(self, goal_id):
-        # robot aktualnie nie ma przydzielonego zadania i znajduje sie w POI
-        for robot_plan in self.robots_plan.robots.values():
-            poi_id = self.planning_graph.get_poi(robot_plan.edge)
-            if robot_plan.task is None and poi_id is not None and poi_id == goal_id:
-                return True
-        return False
 
     def get_robots_using_pois(self):
         """
@@ -1457,10 +1415,16 @@ class Dispatcher:
              ({poi_id: wolne_sloty, ...}) : liczba wolnych slotow dla kazdego poi.
         """
         robots_using_poi = self.get_robots_using_pois()
+        free_robots_in_poi = {poi: 0 for poi in self.pois.pois}
+        for robot in self.robots_plan.get_free_robots():
+            poi_id = self.planning_graph.get_poi(robot.edge)
+            if poi_id is not None:
+                free_robots_in_poi[poi_id] += 1
+
         max_robots_in_poi = self.planning_graph.get_max_allowed_robots_using_pois()
         free_slots_in_poi = {}
         for poi_id in robots_using_poi:
-            diff = max_robots_in_poi[poi_id] - robots_using_poi[poi_id]
+            diff = max_robots_in_poi[poi_id] - robots_using_poi[poi_id] - free_robots_in_poi[poi_id]
             free_slots_in_poi[poi_id] = 0 if diff < 0 else diff
         return free_slots_in_poi
 
@@ -1500,7 +1464,7 @@ class Dispatcher:
         all_tasks.
 
         Parameters:
-            tasks ([Task, ...]): lista zadan, ktore maja byc przypisane do robotow
+            tasks ([Task, Task, ...]): lista posortowanych zadan ktore maja byc przypisane do robotow
             robots_id ([string, string, ...]): lista id robotow do ktorych maja zostac przypisane zadania
         """
         for task in tasks:
@@ -1557,7 +1521,7 @@ class Dispatcher:
                 od kolejnego zadania do wykonania
 
         Returns:
-            goalNode (int): id wezla z grafu rozszerzonego na ktorym opiera sie tworzenie zadan
+            goalNode (string): id wezla z grafu rozszerzonego na ktorym opiera sie tworzenie zadan
         """
         poi_id = task.get_poi_goal()
         behaviour = task.get_current_behaviour()
