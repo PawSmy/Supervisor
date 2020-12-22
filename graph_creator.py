@@ -862,21 +862,23 @@ class SupervisorGraphCreator(DataConverter):
             node_type = node_data["nodeType"]
             if node_type == new_node_type["dock"]:  # zakomentowane funkcje na potrzeby testow polaczenia pomiedzy
                 # krawedziami
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)  # node_position
+                self.graph.nodes[node_id]["pos"] = node_position # self.get_poi_nodes_pos(node_id, combined_edges)
             elif node_type == new_node_type["wait"]:
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)  # node_position  #
+                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)  # 
             elif node_type == new_node_type["undock"]:
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)  # node_position  #
+                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)  # 
             elif node_type == new_node_type["end"]:
-                self.graph.nodes[node_id]["pos"] = self.get_poi_nodes_pos(node_id, combined_edges)  # node_position  #
+                self.graph.nodes[node_id]["pos"] = node_position  # self.get_poi_nodes_pos(node_id, combined_edges)  # 
             elif node_type == new_node_type["noChanges"]:
                 self.graph.nodes[node_id]["pos"] = node_position
             elif node_type == new_node_type["intersection_in"]:
-                position = self.get_new_intersection_node_position(node_id)
-                self.graph.nodes[node_id]["pos"] = position
+                #position = self.get_new_intersection_node_position(node_id)
+                # self.graph.nodes[node_id]["pos"] = position
+                self.graph.nodes[node_id]["pos"] = node_position
             elif node_type == new_node_type["intersection_out"]:
-                position = self.get_new_intersection_node_position(node_id)
-                self.graph.nodes[node_id]["pos"] = position
+                #position = self.get_new_intersection_node_position(node_id)
+                # self.graph.nodes[node_id]["pos"] = position
+                self.graph.nodes[node_id]["pos"] = node_position
 
     def get_poi_nodes_pos(self, graph_node_id, combined_edges):
         # poszukiwanie id wezlow przed i za stanowiskiem na podstawie krawedzi grafu
@@ -1032,8 +1034,8 @@ class SupervisorGraphCreator(DataConverter):
                 dist = 0
                 for j in range(len(nodes_pos) - 1):
                     dist = dist + math.hypot(nodes_pos[j + 1][0] - nodes_pos[j][0],
-                                             nodes_pos[j + 1][1] - nodes_pos[j][1])
-                self.graph.edges[i]["maxRobots"] = math.floor(dist / robot_length)
+                                             nodes_pos[j + 1][1] - nodes_pos[j][1])                         
+                self.graph.edges[i]["maxRobots"] = max(math.floor(dist / robot_length), 1)
 
     def get_corridor_path(self, edge):
         # sourcePath = [(x,y),(x2,y2),...]
@@ -1239,5 +1241,6 @@ class SupervisorGraphCreator(DataConverter):
         # font_size=25,with_labels=True,font_color="w", width=4)
         # nx.draw_networkx_edge_labels(self.graph, node_pos, edge_color= edge_col, node_color = node_col,
         # edge_labels=maxRobots,font_size=30)
+        nx.drawing.nx_agraph.write_dot(self.graph, "/home/pawel/proj/SMART/supervisor/graph.dot")
         plt.show()
         plt.close()

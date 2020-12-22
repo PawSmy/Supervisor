@@ -62,7 +62,7 @@ class Behaviour:
     TYPES = {  # slownik wartosci zachowan dla robota, wartoscia jest stala nazwa dla danego typu zachowania
         "goto": "GO_TO",
         "dock": "DOCK",
-        "wait": "3",
+        "wait": "WAIT",
         "bat_ex": "BAT_EX",
         "undock": "UNDOCK"
     }
@@ -160,7 +160,7 @@ class Task:
         robot_id (string): id robota
         start_time (time_string YYYY-mm-dd HH:MM:SS or None): czas dodania zadania do bazy
         behaviours ([Behaviour, Behaviour, ...]): lista kolejnych zachowan dla robota
-        curr_behaviour_id (int): id aktualnie wykonywanego zachowania, jesli zadanie jest w trakcie wykonywania
+        current_behaviour_index (int): id aktualnie wykonywanego zachowania, jesli zadanie jest w trakcie wykonywania
         status (string): nazwa statusu z listy STATUS_LIST
         weight (float): waga z jaka powinno zostac wykonane zadanie, im wyzsza tym wyzszy priorytet
     """
@@ -198,7 +198,7 @@ class Task:
         self.weight = task_data[self.PARAM["WEIGHT"]]
         self.priority = 3 if self.PARAM["PRIORITY"] not in task_data else task_data[self.PARAM["PRIORITY"]]
         self.index = 0
-        self.curr_behaviour_id = task_data[self.PARAM["CURRENT_BEH_ID"]]  # dla statusu done kolejne zachowania
+        self.current_behaviour_index = task_data[self.PARAM["CURRENT_BEH_ID"]]  # dla statusu done kolejne zachowania
         # jesli zadanie ma inny status to wartosc tyczy sie aktualnie wykonywanego zachowania
         try:
             self.behaviours = [Behaviour(raw_behaviour) for raw_behaviour in task_data[self.PARAM["BEHAVIOURS"]]]
@@ -236,7 +236,7 @@ class Task:
         Returns:
             (Behaviour): aktualnie wykonywane zachowanie w ramach zadania
         """
-        return self.behaviours[0] if self.curr_behaviour_id == -1 else self.behaviours[self.curr_behaviour_id]
+        return self.behaviours[0] if self.current_behaviour_index == -1 else self.behaviours[self.current_behaviour_index]
 
     def check_if_task_started(self):
         """
@@ -346,7 +346,7 @@ class Task:
         Wyswietla informacje o zadaniu.
         """
         data = "id: " + str(self.id) + ", robot_id: " + str(self.robot_id) + ",start_tme: " + str(self.start_time)+"\n"
-        data += "current beh id: " + str(self.curr_behaviour_id) + ", status: " + str(self.status) +\
+        data += "current beh id: " + str(self.current_behaviour_index) + ", status: " + str(self.status) +\
                 ", weight: " + str(self.weight) + "\n"
         for behaviour in self.behaviours:
             data += behaviour.get_info()
@@ -566,7 +566,7 @@ class RobotsPlanManager:
              base_poi_edges ({poi_id: graph_edge(tuple), ...}) : lista z krawedziami bazowymi do ktorych nalezy
                 przypisac robota, jesli jest on w POI
         """
-        self.robots = robots
+        self.robots = {}
         self.set_robots(robots, base_poi_edges)
 
     def set_robots(self, robots, base_poi_edges):
@@ -577,8 +577,10 @@ class RobotsPlanManager:
                 przypisac robota, jesli jest on w POI
         """
         self.robots = {}
-        for i in robots:
-            robot = robots[i]
+        robots_copy = copy.deepcopy(robots)
+        for i in robots_copy:
+            robot = robots_copy[i]
+            print(robot.edge)
             if robot.planning_on:
                 if type(robot.edge) is not tuple:
                     # zamiast krawedzi jest POI TODO pobrania POI z innego miejsca i wpisanie odpowiedniej
@@ -588,6 +590,8 @@ class RobotsPlanManager:
                     #print("robot edge/poi id: ", robot.edge, robot.poi_id)
                     robot.edge = base_poi_edges[robot.poi_id]
                 self.robots[robot.id] = robot
+            print(robot.edge)
+            print()
 
     def get_robot_by_id(self, robot_id):
         """
@@ -1031,7 +1035,7 @@ class PlanningGraph:
         Returns:
             (list): kolejne krawedzie grafu, ktorymi ma sie poruszac robot, aby dotrzec do celu
         """
-        self.block_other_pois(start_node, end_node)
+        # self.block_other_pois(start_node, end_node)
         if start_node == end_node:
             raise PlaningGraphError("Wrong plan. Start node '{}' should be different than end node '{}'."
                                     .format(start_node, end_node))
@@ -1048,7 +1052,7 @@ class PlanningGraph:
         Returns:
             (float): czas dojazdu od start_node do end_node
         """
-        self.block_other_pois(start_node, end_node)
+        # self.block_other_pois(start_node, end_node)
         if start_node == end_node:
             return 0
         else:
@@ -1181,8 +1185,11 @@ class Dispatcher:
             robots ({"id": Robot, "id": Robot, ...}): slownik z lista robotow do ktorych beda przypisywane zadania
             tasks ([Task, Task, ...]): lista posortowanych zadan dla robotow
         """
+        print([robot.task for robot in self.robots_plan.robots.values()])
         self.set_tasks(tasks)
+        print([robot.task for robot in self.robots_plan.robots.values()])
         self.init_robots_plan(robots)
+        print([robot.task for robot in self.robots_plan.robots.values()])
         self.set_tasks_doing_by_robots()
         self.set_task_assigned_to_robots()
         self.set_other_tasks()
@@ -1208,12 +1215,17 @@ class Dispatcher:
         """
         Przypisanie zadan do robotow, ktore aktualnie pracuja i usuniecie ich z listy zadan do przeanalizowania.
         """
+        for robot in self.robots_plan.robots.values():
+            print(robot.get_info())
+        for task in self.unanalyzed_tasks_handler.tasks:
+            print(task.get_info())
         # przypisanie zadan z POI w których aktualnie jest robot
         tasks_id_to_remove = []
         for unanalyzed_task in self.unanalyzed_tasks_handler.tasks:
             current_behaviour_is_goto = unanalyzed_task.get_current_behaviour().check_if_go_to()
             task_started = unanalyzed_task.check_if_task_started()
             for robot in self.robots_plan.get_free_robots():
+                print("1")
                 if robot.id == unanalyzed_task.robot_id and task_started and not current_behaviour_is_goto:
                     self.robots_plan.set_task(robot.id, unanalyzed_task)
                     self.set_task_edge(robot.id)
@@ -1227,6 +1239,7 @@ class Dispatcher:
             task_poi_goal = unanalyzed_task.get_poi_goal()
             task_started = unanalyzed_task.check_if_task_started()
             for robot in self.robots_plan.get_free_robots():
+                print("2")
                 robot_poi = self.planning_graph.get_poi(robot.edge)
                 if (robot.id == unanalyzed_task.robot_id and task_started and current_behaviour_is_goto)\
                         and (robot_poi == task_poi_goal or robot_poi is None):
@@ -1243,6 +1256,7 @@ class Dispatcher:
             task_poi_goal = unanalyzed_task.get_poi_goal()
             task_started = unanalyzed_task.check_if_task_started()
             for robot in self.robots_plan.get_free_robots():
+                print("3")
                 robot_poi = self.planning_graph.get_poi(robot.edge)
                 if robot.id == unanalyzed_task.robot_id and task_started and robot_poi != task_poi_goal:
                     self.robots_plan.set_task(robot.id, unanalyzed_task)
@@ -1322,6 +1336,7 @@ class Dispatcher:
         """
         robot = self.robots_plan.get_robot_by_id(robot_id)
         if robot.planning_on and robot.is_free:
+            print("zxc")
             # robot wykonal fragment zachowania lub ma przydzielone zupelnie nowe zadanie
             # weryfikacja czy kolejna akcja jazdy krawedzia moze zostac wykonana
             start_node = robot.get_current_node()
@@ -1442,7 +1457,7 @@ class Dispatcher:
         free_robots_in_poi = {poi: 0 for poi in self.pois.pois}
         for robot in self.robots_plan.get_free_robots():
             poi_id = self.planning_graph.get_poi(robot.edge)
-            if poi_id is not None:
+            if poi_id and poi_id != "0":
                 free_robots_in_poi[poi_id] += 1
 
         max_robots_in_poi = self.planning_graph.get_max_allowed_robots_using_pois()
